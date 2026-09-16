@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex">
+
+    <!-- ==========================================================
+    MENU LATERAL
+    ========================================================== -->
+    <aside id="menu-lateral" class="w-64 bg-slate-800 border-r border-slate-700 min-h-screen flex flex-col transition-all duration-300">
+        
+        <!-- Logo -->
+        <div class="p-4 border-b border-slate-700">
+            <h1 class="text-xl font-bold text-white">📦 Painel ADM</h1>
+            <p class="text-xs text-slate-400">Sistema de Conferência</p>
+        </div>
+
+        <!-- Navegação -->
+        <nav class="flex-1 p-4 space-y-1">
+            <a href="conferencia.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                <i class="fas fa-qrcode w-5 text-center"></i>
+                <span>Conferência</span>
+            </a>
+            <a href="dashboard.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                <i class="fas fa-chart-bar w-5 text-center"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="importar.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                <i class="fas fa-upload w-5 text-center"></i>
+                <span>Importar Dados</span>
+            </a>
+            <a href="cadastro-usuarios.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                <i class="fas fa-users w-5 text-center"></i>
+                <span>Usuários</span>
+            </a>
+            <!-- NOVO: Limpar Dados (apenas admin) -->
+            <a href="limpar-dados.html" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                <i class="fas fa-trash-alt w-5 text-center text-red-400"></i>
+                <span class="text-red-400">Limpar Dados</span>
+            </a>
+        </nav>
+
+        <!-- Rodapé do menu -->
+        <div class="p-4 border-t border-slate-700">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-user-circle text-amber-400 text-xl"></i>
+                    <div>
+                        <p class="text-sm font-medium text-white" id="menu-usuario-nome">Usuário</p>
+                        <p class="text-xs text-slate-400" id="menu-usuario-role">admin</p>
+                    </div>
+                </div>
+                <button id="menu-btn-sair" class="text-red-400 hover:text-red-300 text-sm transition-colors">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ==========================================================
+    CONTEÚDO PRINCIPAL
+    ========================================================== -->
+    <main class="flex-1 overflow-y-auto">
+        <iframe id="conteudo-admin" src="conferencia.html" class="w-full h-full min-h-screen border-0"></iframe>
+    </main>
+
+    <script>
+        // ==========================================================
+        // VERIFICA LOGIN E PERMISSÃO
+        // ==========================================================
+
+        function verificarAcesso() {
+            const usuarioSalvo = localStorage.getItem('usuario_logado');
+            if (!usuarioSalvo) {
+                window.location.href = 'index.html';
+                return null;
+            }
+            try {
+                const dados = JSON.parse(usuarioSalvo);
+                if (!dados.usuario) {
+                    window.location.href = 'index.html';
+                    return null;
+                }
+                // Verifica se é admin
+                if (dados.role !== 'admin') {
+                    // Se não for admin, redireciona para conferencia.html
+                    window.location.href = 'conferencia.html';
+                    return null;
+                }
+                return dados;
+            } catch (e) {
+                window.location.href = 'index.html';
+                return null;
+            }
+        }
+
+        const usuario = verificarAcesso();
+        if (usuario) {
+            document.getElementById('menu-usuario-nome').textContent = usuario.nome || 'Administrador';
+            document.getElementById('menu-usuario-role').textContent = usuario.role || 'admin';
+        }
+
+        // ==========================================================
+        // FUNÇÃO PARA SAIR
+        // ==========================================================
+
+        function logout() {
+            localStorage.removeItem('usuario_logado');
+            localStorage.removeItem('conferente');
+            window.location.href = 'index.html';
+        }
+
+        document.getElementById('menu-btn-sair').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (confirm('Deseja realmente encerrar a sessão?')) {
+                logout();
+            }
+        });
+
+        // ==========================================================
+        // NAVEGAÇÃO NO MENU (carrega páginas no iframe)
+        // ==========================================================
+
+        document.querySelectorAll('#menu-lateral nav a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const href = this.getAttribute('href');
+                document.getElementById('conteudo-admin').src = href;
+                
+                // Marca o link como ativo
+                document.querySelectorAll('#menu-lateral nav a').forEach(l => {
+                    l.classList.remove('bg-slate-700', 'text-white');
+                    l.classList.add('text-slate-300');
+                });
+                this.classList.remove('text-slate-300');
+                this.classList.add('bg-slate-700', 'text-white');
+            });
+        });
+
+        // Marca o primeiro link como ativo
+        const primeiroLink = document.querySelector('#menu-lateral nav a');
+        if (primeiroLink) {
+            primeiroLink.classList.add('bg-slate-700', 'text-white');
+            primeiroLink.classList.remove('text-slate-300');
+        }
+
+        // ==========================================================
+        // ATUALIZA O TÍTULO DA PÁGINA QUANDO O IFRAME CARREGA
+        // ==========================================================
+
+        document.getElementById('conteudo-admin').addEventListener('load', function() {
+            try {
+                const titulo = this.contentDocument?.title || 'FreteOnX';
+                document.title = `Admin - ${titulo}`;
+            } catch (e) {
+                // Ignora erro de cross-origin
+            }
+        });
+
+        console.log('✅ Admin layout carregado');
+    </script>
+
+</body>
+</html>

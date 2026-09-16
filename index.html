@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistema de Conferência</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+        window.supabaseClient = createClient(
+            'https://fqrfknyludtvqaaajjoc.supabase.co',
+            'sb_publishable_fkC9WhreuFmhmbVRCw6Isw_rftuBACx'
+        );
+        window.dispatchEvent(new Event('supabase-ready'));
+    </script>
+</head>
+
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-700">
+        
+        <!-- Logo / Título -->
+        <div class="text-center mb-8">
+            <div class="text-4xl mb-2">🔐</div>
+            <h1 class="text-2xl font-bold text-white">Sistema de Conferência</h1>
+            <p class="text-slate-400 text-sm">Faça login para continuar</p>
+        </div>
+
+        <!-- Formulário -->
+        <form id="form-login" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-1">👤 Usuário</label>
+                <input type="text" id="usuario" 
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500 transition-colors"
+                       placeholder="Digite seu usuário" autofocus>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-1">🔑 Senha</label>
+                <input type="password" id="senha" 
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500 transition-colors"
+                       placeholder="Digite sua senha">
+            </div>
+
+            <button type="submit" id="btn-login" 
+                    class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
+                🚀 Entrar
+            </button>
+
+            <div id="login-status" class="text-center text-sm hidden"></div>
+        </form>
+
+        <!-- Rodapé -->
+        <div class="mt-6 pt-4 border-t border-slate-700 text-center">
+            <p class="text-xs text-slate-500">Usuários: admin / joao / maria | Senha: 123456</p>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================================
+        // VARIÁVEIS
+        // ==========================================================
+
+        let supabaseClient = null;
+        const form = document.getElementById('form-login');
+        const usuarioInput = document.getElementById('usuario');
+        const senhaInput = document.getElementById('senha');
+        const btnLogin = document.getElementById('btn-login');
+        const statusDiv = document.getElementById('login-status');
+
+
+        // ==========================================================
+        // INICIALIZAÇÃO
+        // ==========================================================
+
+        window.addEventListener('supabase-ready', () => {
+            supabaseClient = window.supabaseClient;
+            console.log('✅ Supabase conectado');
+        });
+
+        // Fallback: tenta conectar sozinho
+        setTimeout(() => {
+            if (!supabaseClient && window.supabaseClient) {
+                supabaseClient = window.supabaseClient;
+                console.log('✅ Supabase conectado (fallback)');
+            }
+        }, 2000);
+
+        // Verifica se já está logado
+        const usuarioSalvo = localStorage.getItem('usuario_logado');
+        if (usuarioSalvo) {
+            try {
+                const dados = JSON.parse(usuarioSalvo);
+                if (dados.usuario) {
+                    // Já está logado, redireciona conforme o role
+                    if (dados.role === 'admin') {
+                        window.location.href = 'admin-layout.html';
+                    } else {
+                        window.location.href = 'conferencia.html';
+                    }
+                }
+            } catch (e) {}
+        }
+
+
+        // ==========================================================
+        // FUNÇÃO DE LOGIN (ATUALIZADA COM TENANT_ID)
+        // ==========================================================
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const usuario = usuarioInput.value.trim();
+            const senha = senhaInput.value.trim();
+
+            if (!usuario || !senha) {
+                mostrarStatus('⚠️ Preencha usuário e senha', 'text-red-400');
+                return;
+            }
+
+            // Desabilita o botão
+            btnLogin.disabled = true;
+            btnLogin.textContent = '⏳ Verificando...';
+            mostrarStatus('', '');
+
+            try {
+                // Verifica se o Supabase está disponível
+                if (!supabaseClient) {
+                    mostrarStatus('❌ Erro de conexão com o banco de dados', 'text-red-400');
+                    btnLogin.disabled = false;
+                    btnLogin.textContent = '🚀 Entrar';
+                    return;
+                }
+
+                // 🔥 BUSCA O USUÁRIO INCLUINDO O tenant_id
+                const { data: usuarios, error } = await supabaseClient
+                    .from('usuarios')
+                    .select('id, nome, usuario, role, tenant_id')
+                    .eq('usuario', usuario)
+                    .eq('senha', senha)
+                    .eq('ativo', true)
+                    .maybeSingle();
+
+                if (error) {
+                    console.error('❌ Erro na consulta:', error);
+                    mostrarStatus('❌ Erro ao verificar credenciais', 'text-red-400');
+                    btnLogin.disabled = false;
+                    btnLogin.textContent = '🚀 Entrar';
+                    return;
+                }
+
+                if (usuarios) {
+                    // ✅ LOGIN REALIZADO COM SUCESSO!
+                    console.log('✅ Login realizado:', usuarios);
+
+                    // 🔥 SALVA OS DADOS DO USUÁRIO COM O tenant_id
+                    const dadosUsuario = {
+                        id: usuarios.id,
+                        nome: usuarios.nome,
+                        usuario: usuarios.usuario,
+                        role: usuarios.role || 'conferente',
+                        tenant_id: usuarios.tenant_id || null,
+                        login_at: new Date().toISOString()
+                    };
+                    localStorage.setItem('usuario_logado', JSON.stringify(dadosUsuario));
+                    localStorage.setItem('conferente', JSON.stringify({ 
+                        nome: usuarios.nome, 
+                        usuario: usuarios.usuario,
+                        role: usuarios.role || 'conferente',
+                        tenant_id: usuarios.tenant_id || null
+                    }));
+
+                    console.log('💾 Dados salvos com tenant:', dadosUsuario);
+
+                    mostrarStatus('✅ Login realizado! Redirecionando...', 'text-green-400');
+
+                    // Redireciona conforme o role
+                    setTimeout(() => {
+                        if (dadosUsuario.role === 'admin') {
+                            window.location.href = 'admin-layout.html';
+                        } else {
+                            window.location.href = 'conferencia.html';
+                        }
+                    }, 800);
+
+                } else {
+                    // ❌ USUÁRIO OU SENHA INCORRETOS
+                    mostrarStatus('❌ Usuário ou senha incorretos', 'text-red-400');
+                    btnLogin.disabled = false;
+                    btnLogin.textContent = '🚀 Entrar';
+                    senhaInput.value = '';
+                    senhaInput.focus();
+                }
+
+            } catch (err) {
+                console.error('❌ Erro no login:', err);
+                mostrarStatus('❌ Erro ao realizar login', 'text-red-400');
+                btnLogin.disabled = false;
+                btnLogin.textContent = '🚀 Entrar';
+            }
+        });
+
+
+        // ==========================================================
+        // FUNÇÃO PARA MOSTRAR STATUS
+        // ==========================================================
+
+        function mostrarStatus(mensagem, classe) {
+            if (mensagem) {
+                statusDiv.textContent = mensagem;
+                statusDiv.className = `text-center text-sm font-semibold ${classe}`;
+                statusDiv.classList.remove('hidden');
+            } else {
+                statusDiv.classList.add('hidden');
+            }
+        }
+
+
+        // ==========================================================
+        // ENTER PARA ENVIAR O FORMULÁRIO
+        // ==========================================================
+
+        senhaInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                form.dispatchEvent(new Event('submit'));
+            }
+        });
+
+        usuarioInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                senhaInput.focus();
+            }
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Métricas de Conferência</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+        window.supabaseClient = createClient(
+            'https://fqrfknyludtvqaaajjoc.supabase.co',
+            'sb_publishable_fkC9WhreuFmhmbVRCw6Isw_rftuBACx'
+        );
+        window.dispatchEvent(new Event('supabase-ready'));
+    </script>
+</head>
+
+<body class="bg-slate-900 text-white min-h-screen p-4">
+
+    <div class="max-w-7xl mx-auto">
+
+        <!-- Cabeçalho -->
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-white">📊 Dashboard de Conferência</h1>
+                <p class="text-slate-400 text-sm" id="filtro-status">Métricas em tempo real do sistema de duplo bip</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="connection-status" class="text-sm text-yellow-400">⏳ Conectando...</span>
+                <button id="btn-limpar-filtro" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors hidden">
+                    🗑️ Limpar Filtro
+                </button>
+                <button id="btn-atualizar" class="bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors">
+                    🔄 Atualizar
+                </button>
+            </div>
+        </header>
+
+        <!-- Cards de Resumo (3 colunas) -->
+        <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-slate-400">📦 Total Conferido</span>
+                    <span class="text-2xl font-bold text-emerald-400" id="total-conferido">0</span>
+                </div>
+                <div class="mt-1">
+                    <span class="text-xs text-slate-500">Última hora: <span id="ultima-hora" class="text-slate-300">0</span></span>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-slate-400">✅ Taxa de Sucesso</span>
+                    <span class="text-2xl font-bold text-green-400" id="taxa-sucesso">0%</span>
+                </div>
+                <div class="w-full bg-slate-700 rounded-full h-1.5 mt-1">
+                    <div id="barra-sucesso" class="bg-green-400 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-slate-400">❌ Divergências</span>
+                    <span class="text-2xl font-bold text-red-400" id="total-erros">0</span>
+                </div>
+                <div class="mt-1">
+                    <span class="text-xs text-slate-500">Última hora: <span id="erros-ultima-hora" class="text-slate-300">0</span></span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Gráficos Principais -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <!-- Gráfico: Volumes por Hora -->
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <h3 class="text-sm font-semibold text-slate-300 mb-3">📈 Volumes por Hora</h3>
+                <div class="relative" style="height: 180px;">
+                    <canvas id="chart-horas"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfico: Top Conferentes -->
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <h3 class="text-sm font-semibold text-slate-300 mb-3">🏆 Top Conferentes <span id="filtro-conferente" class="text-xs text-amber-400 ml-2"></span></h3>
+                <div class="relative" style="height: 180px;">
+                    <canvas id="chart-conferentes"></canvas>
+                </div>
+                <p class="text-xs text-slate-500 mt-2 text-center">👆 Clique em um conferente para filtrar</p>
+            </div>
+        </section>
+
+        <!-- Segunda Linha: Últimas Divergências -->
+        <section class="grid grid-cols-1 gap-4">
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-semibold text-slate-300">🚨 Últimas Divergências</h3>
+                    <span class="text-xs text-slate-500" id="total-divergencias">Total: 0</span>
+                </div>
+                <div id="ultimas-divergencias" class="space-y-1.5 max-h-[280px] overflow-y-auto">
+                    <div class="text-center text-slate-500 text-sm py-4">Nenhuma divergência registrada</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Rodapé -->
+        <footer class="mt-6 p-3 bg-slate-800/50 rounded-xl border border-slate-700 text-center text-xs text-slate-500">
+            <span id="footer-info">⏳ Aguardando dados...</span>
+        </footer>
+
+    </div>
+
+    <script>
+        // ==========================================================
+        // VERIFICA LOGIN
+        // ==========================================================
+
+        function verificarLogin() {
+            const usuarioSalvo = localStorage.getItem('usuario_logado');
+            if (!usuarioSalvo) {
+                window.location.href = 'index.html';
+                return null;
+            }
+            try {
+                const dados = JSON.parse(usuarioSalvo);
+                if (!dados.usuario) {
+                    window.location.href = 'index.html';
+                    return null;
+                }
+                return dados;
+            } catch (e) {
+                window.location.href = 'index.html';
+                return null;
+            }
+        }
+        verificarLogin();
+
+
+        // ==========================================================
+        // FUNÇÃO PARA OBTER O TENANT DO USUÁRIO LOGADO
+        // ==========================================================
+
+        function getTenantId() {
+            try {
+                const usuarioSalvo = localStorage.getItem('usuario_logado');
+                if (!usuarioSalvo) {
+                    console.warn('⚠️ Nenhum usuário logado');
+                    return null;
+                }
+                const dados = JSON.parse(usuarioSalvo);
+                console.log('🔍 Tenant do usuário:', dados.tenant_id);
+                return dados.tenant_id || null;
+            } catch (e) {
+                console.error('❌ Erro ao obter tenant:', e);
+                return null;
+            }
+        }
+
+
+        // ==========================================================
+        // VARIÁVEIS GLOBAIS
+        // ==========================================================
+
+        let supabaseClient = null;
+        let charts = {};
+        let dadosCompletos = [];
+        let filtroConferente = null; // null = todos, ou nome do conferente
+
+
+        // ==========================================================
+        // INICIALIZAÇÃO
+        // ==========================================================
+
+        window.addEventListener('supabase-ready', () => {
+            supabaseClient = window.supabaseClient;
+            document.getElementById('connection-status').textContent = '✅ Conectado';
+            document.getElementById('connection-status').className = 'text-sm text-green-400';
+            carregarDados();
+        });
+
+        setTimeout(() => {
+            if (!supabaseClient && window.supabaseClient) {
+                supabaseClient = window.supabaseClient;
+                document.getElementById('connection-status').textContent = '✅ Conectado';
+                document.getElementById('connection-status').className = 'text-sm text-green-400';
+                carregarDados();
+            }
+        }, 2000);
+
+        // Botão limpar filtro
+        document.getElementById('btn-limpar-filtro').addEventListener('click', () => {
+            filtroConferente = null;
+            document.getElementById('btn-limpar-filtro').classList.add('hidden');
+            document.getElementById('filtro-conferente').textContent = '';
+            document.getElementById('filtro-status').textContent = 'Métricas em tempo real do sistema de duplo bip';
+            carregarDados();
+        });
+
+
+        // ==========================================================
+        // FUNÇÃO PARA CARREGAR DADOS (COM FILTRO DE TENANT)
+        // ==========================================================
+
+        async function carregarDados() {
+            if (!supabaseClient) {
+                console.warn('⚠️ Supabase não inicializado');
+                return;
+            }
+
+            try {
+                const tenantId = getTenantId();
+                
+                console.log('🔍 Tenant ID:', tenantId);
+                
+                let query = supabaseClient
+                    .from('conferencia_log')
+                    .select('*');
+
+                // 🔥 FILTRA PELO TENANT
+                if (tenantId) {
+                    query = query.eq('tenant_id', tenantId);
+                    console.log('🔍 Filtrando por tenant:', tenantId);
+                } else {
+                    console.warn('⚠️ Nenhum tenant encontrado, mostrando todos os dados (modo admin master?)');
+                }
+
+                const { data: logs, error } = await query
+                    .order('created_at', { ascending: false })
+                    .limit(500);
+
+                if (error) {
+                    console.error('❌ Erro ao buscar logs:', error);
+                    throw error;
+                }
+
+                console.log(`📊 ${logs?.length || 0} registros carregados`);
+
+                if (!logs || logs.length === 0) {
+                    document.getElementById('footer-info').textContent = '📭 Nenhum registro encontrado para este tenant';
+                    limparDados();
+                    return;
+                }
+
+                dadosCompletos = logs;
+
+                // Aplica filtro se houver
+                let dadosFiltrados = logs;
+                if (filtroConferente) {
+                    dadosFiltrados = logs.filter(log => log.conferente === filtroConferente);
+                    document.getElementById('filtro-conferente').textContent = `🎯 ${filtroConferente}`;
+                    document.getElementById('filtro-status').textContent = `📋 Filtrando por: ${filtroConferente}`;
+                    document.getElementById('btn-limpar-filtro').classList.remove('hidden');
+                } else {
+                    document.getElementById('filtro-conferente').textContent = '';
+                    document.getElementById('filtro-status').textContent = 'Métricas em tempo real do sistema de duplo bip';
+                    document.getElementById('btn-limpar-filtro').classList.add('hidden');
+                }
+
+                processarDados(dadosFiltrados);
+                atualizarGraficos(dadosFiltrados);
+
+            } catch (err) {
+                console.error('❌ Erro ao carregar dados:', err);
+                document.getElementById('connection-status').textContent = '❌ Erro';
+                document.getElementById('connection-status').className = 'text-sm text-red-400';
+            }
+        }
+
+        function limparDados() {
+            document.getElementById('total-conferido').textContent = '0';
+            document.getElementById('total-erros').textContent = '0';
+            document.getElementById('taxa-sucesso').textContent = '0%';
+            document.getElementById('barra-sucesso').style.width = '0%';
+            document.getElementById('ultima-hora').textContent = '0';
+            document.getElementById('erros-ultima-hora').textContent = '0';
+            
+            const container = document.getElementById('ultimas-divergencias');
+            container.innerHTML = '<div class="text-center text-slate-500 text-sm py-4">Nenhuma divergência registrada</div>';
+            
+            if (charts.horas) {
+                charts.horas.data.labels = ['Sem dados'];
+                charts.horas.data.datasets[0].data = [0];
+                charts.horas.update();
+            }
+            if (charts.conferentes) {
+                charts.conferentes.data.labels = ['Sem dados'];
+                charts.conferentes.data.datasets[0].data = [1];
+                charts.conferentes.update();
+            }
+        }
+
+
+        // ==========================================================
+        // PROCESSAR DADOS
+        // ==========================================================
+
+        function processarDados(logs) {
+            let sucesso = 0, erro = 0;
+            let conferentes = {}, horas = {};
+            let agora = new Date();
+            let ultimaHora = 0, errosUltimaHora = 0;
+            let divergencias = [];
+
+            logs.forEach(log => {
+                if (log.status === 'sucesso') sucesso++;
+                else if (log.status === 'erro') {
+                    erro++;
+                    divergencias.push(log);
+                }
+
+                if (log.conferente) {
+                    conferentes[log.conferente] = (conferentes[log.conferente] || 0) + 1;
+                }
+
+                if (log.created_at) {
+                    const data = new Date(log.created_at);
+                    const hora = data.getHours();
+                    const horaStr = String(hora).padStart(2, '0') + 'h';
+                    horas[horaStr] = (horas[horaStr] || 0) + 1;
+
+                    const diffHoras = (agora - data) / (1000 * 60 * 60);
+                    if (diffHoras <= 1) {
+                        ultimaHora++;
+                        if (log.status === 'erro') errosUltimaHora++;
+                    }
+                }
+            });
+
+            const totais = { sucesso, erro, total: sucesso + erro };
+
+            document.getElementById('total-conferido').textContent = totais.total;
+            document.getElementById('total-erros').textContent = erro;
+            document.getElementById('ultima-hora').textContent = ultimaHora;
+            document.getElementById('erros-ultima-hora').textContent = errosUltimaHora;
+
+            const taxa = totais.total > 0 ? Math.round((sucesso / totais.total) * 100) : 0;
+            document.getElementById('taxa-sucesso').textContent = taxa + '%';
+            document.getElementById('barra-sucesso').style.width = taxa + '%';
+
+            // Atualiza lista de divergências
+            const ultimasDivergencias = divergencias.slice(0, 20);
+            atualizarUltimasDivergencias(ultimasDivergencias);
+
+            const dataAtual = new Date().toLocaleString('pt-BR');
+            const filtroTexto = filtroConferente ? ` | 🎯 Filtrando: ${filtroConferente}` : '';
+            document.getElementById('footer-info').textContent = 
+                `📊 ${totais.total} registros | ✅ ${sucesso} sucessos | ❌ ${erro} erros | Última atualização: ${dataAtual}${filtroTexto}`;
+
+            // Armazena para os gráficos
+            window.dadosProcessados = {
+                conferentes: conferentes,
+                horas: horas,
+                divergencias: divergencias,
+                totais: totais
+            };
+        }
+
+
+        // ==========================================================
+        // ATUALIZAR ÚLTIMAS DIVERGÊNCIAS
+        // ==========================================================
+
+        function atualizarUltimasDivergencias(divergencias) {
+            const container = document.getElementById('ultimas-divergencias');
+            const totalDiv = document.getElementById('total-divergencias');
+            
+            if (!divergencias || divergencias.length === 0) {
+                container.innerHTML = '<div class="text-center text-slate-500 text-sm py-4">✅ Nenhuma divergência registrada</div>';
+                totalDiv.textContent = 'Total: 0';
+                return;
+            }
+
+            totalDiv.textContent = `Total: ${divergencias.length}`;
+
+            container.innerHTML = divergencias.map(log => {
+                const data = log.created_at ? new Date(log.created_at).toLocaleTimeString('pt-BR') : '-';
+                const conferente = log.conferente || 'Desconhecido';
+                const nr = log.nr || 'N/A';
+                const volume = log.volume_clie || 'N/A';
+                const mensagem = log.mensagem || 'Erro na conferência';
+                return `
+                    <div class="flex justify-between items-center bg-red-900/20 border-l-4 border-red-500 px-3 py-2 rounded-lg text-xs">
+                        <div class="flex flex-col min-w-[200px]">
+                            <span class="font-mono text-slate-300 text-xs font-bold">${nr}</span>
+                            <span class="font-mono text-slate-400 text-[10px]">${volume}</span>
+                        </div>
+                        <span class="text-red-400 font-semibold text-xs flex-1 text-center">${mensagem}</span>
+                        <span class="text-slate-400 text-xs">${conferente}</span>
+                        <span class="text-slate-500 text-xs">${data}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+
+        // ==========================================================
+        // ATUALIZAR GRÁFICOS
+        // ==========================================================
+
+        function atualizarGraficos(logs) {
+            const dados = window.dadosProcessados || { conferentes: {}, horas: {} };
+
+            // 1. Gráfico de Horas
+            const horas = dados.horas || {};
+            const labelsHoras = Object.keys(horas).sort();
+            const dadosHoras = labelsHoras.map(h => horas[h] || 0);
+
+            if (charts.horas) {
+                charts.horas.data.labels = labelsHoras.length > 0 ? labelsHoras : ['Sem dados'];
+                charts.horas.data.datasets[0].data = dadosHoras.length > 0 ? dadosHoras : [0];
+                charts.horas.update();
+            } else {
+                const ctx = document.getElementById('chart-horas').getContext('2d');
+                charts.horas = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labelsHoras.length > 0 ? labelsHoras : ['Sem dados'],
+                        datasets: [{
+                            label: 'Volumes',
+                            data: dadosHoras.length > 0 ? dadosHoras : [0],
+                            backgroundColor: 'rgba(52, 211, 153, 0.7)',
+                            borderColor: 'rgba(52, 211, 153, 1)',
+                            borderWidth: 1,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { color: '#94a3b8', stepSize: 1 } },
+                            x: { ticks: { color: '#94a3b8', font: { size: 9 } } }
+                        }
+                    }
+                });
+            }
+
+            // 2. Gráfico de Conferentes (com click interativo)
+            const conferentes = dados.conferentes || {};
+            const topConferentes = Object.entries(conferentes)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8);
+            const labelsConf = topConferentes.map(c => c[0]);
+            const dadosConf = topConferentes.map(c => c[1]);
+
+            // Destacar o conferente selecionado
+            const cores = labelsConf.map(nome => {
+                if (filtroConferente && nome === filtroConferente) {
+                    return 'rgba(251, 191, 36, 0.9)'; // Amarelo dourado
+                }
+                return [
+                    'rgba(251, 191, 36, 0.8)',
+                    'rgba(52, 211, 153, 0.8)',
+                    'rgba(96, 165, 250, 0.8)',
+                    'rgba(248, 113, 113, 0.8)',
+                    'rgba(167, 139, 250, 0.8)',
+                    'rgba(251, 146, 60, 0.8)',
+                    'rgba(45, 212, 191, 0.8)',
+                    'rgba(244, 63, 94, 0.8)'
+                ][labelsConf.indexOf(nome)] || 'rgba(148, 163, 184, 0.8)';
+            });
+
+            if (charts.conferentes) {
+                charts.conferentes.data.labels = labelsConf.length > 0 ? labelsConf : ['Sem dados'];
+                charts.conferentes.data.datasets[0].data = dadosConf.length > 0 ? dadosConf : [1];
+                charts.conferentes.data.datasets[0].backgroundColor = cores;
+                charts.conferentes.update();
+            } else {
+                const ctx = document.getElementById('chart-conferentes').getContext('2d');
+                charts.conferentes = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labelsConf.length > 0 ? labelsConf : ['Sem dados'],
+                        datasets: [{
+                            data: dadosConf.length > 0 ? dadosConf : [1],
+                            backgroundColor: cores.length > 0 ? cores : ['rgba(148, 163, 184, 0.8)'],
+                            borderWidth: 2,
+                            borderColor: '#1e293b'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { 
+                                    color: '#cbd5e1', 
+                                    font: { size: 9 },
+                                    onClick: function(e, legendItem) {
+                                        const nome = legendItem.text;
+                                        if (nome && nome !== 'Sem dados') {
+                                            aplicarFiltroConferente(nome);
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        onClick: function(e, elements) {
+                            if (elements.length > 0) {
+                                const index = elements[0].index;
+                                const nome = this.data.labels[index];
+                                if (nome && nome !== 'Sem dados') {
+                                    aplicarFiltroConferente(nome);
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+
+        // ==========================================================
+        // FUNÇÃO PARA APLICAR FILTRO POR CONFERENTE
+        // ==========================================================
+
+        function aplicarFiltroConferente(nome) {
+            if (filtroConferente === nome) {
+                filtroConferente = null;
+                document.getElementById('btn-limpar-filtro').classList.add('hidden');
+                document.getElementById('filtro-conferente').textContent = '';
+                document.getElementById('filtro-status').textContent = 'Métricas em tempo real do sistema de duplo bip';
+            } else {
+                filtroConferente = nome;
+                document.getElementById('btn-limpar-filtro').classList.remove('hidden');
+                document.getElementById('filtro-conferente').textContent = `🎯 ${nome}`;
+                document.getElementById('filtro-status').textContent = `📋 Filtrando por: ${nome}`;
+            }
+            carregarDados();
+        }
+
+
+        // ==========================================================
+        // ATUALIZAR AUTOMATICAMENTE A CADA 30 SEGUNDOS
+        // ==========================================================
+
+        document.getElementById('btn-atualizar').addEventListener('click', carregarDados);
+        setInterval(carregarDados, 30000);
+
+        console.log('📊 Dashboard interativo iniciado');
+        console.log('💡 Clique em um conferente no gráfico ou na legenda para filtrar');
+        console.log('🔒 Filtro por tenant ativo');
+    </script>
+
+</body>
+</html>

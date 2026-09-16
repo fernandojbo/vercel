@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2BIP — A Barreira Inteligente da Conferência de Carga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
+        
+        body {
+            background: #0a0e1a;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           ANIMAÇÕES DE ENTRADA
+        ============================================ */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 1s ease, transform 1s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .fade-in-delay-1 { transition-delay: 0.2s; }
+        .fade-in-delay-2 { transition-delay: 0.4s; }
+        .fade-in-delay-3 { transition-delay: 0.6s; }
+        .fade-in-delay-4 { transition-delay: 0.8s; }
+
+        /* ============================================
+           GRADIENTES
+        ============================================ */
+        .gradient-text {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #ef4444 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-text-green {
+            background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ============================================
+           GLOW EFFECTS
+        ============================================ */
+        .glow-amber {
+            box-shadow: 0 0 60px rgba(251, 191, 36, 0.3);
+        }
+
+        .glow-red {
+            box-shadow: 0 0 60px rgba(239, 68, 68, 0.3);
+        }
+
+        .glow-green {
+            box-shadow: 0 0 60px rgba(52, 211, 153, 0.3);
+        }
+
+        /* ============================================
+           BARREIRA ANIMADA
+        ============================================ */
+        .barreira-animada {
+            animation: barreiraPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes barreiraPulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+            50% {
+                transform: scale(1.05);
+                opacity: 1;
+            }
+        }
+
+        .volume-bloqueado {
+            animation: shake 0.5s ease-in-out infinite;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+
+        /* ============================================
+           SCROLL INDICATOR
+        ============================================ */
+        .scroll-indicator {
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(12px); }
+        }
+
+        /* ============================================
+           PULSE DOT
+        ============================================ */
+        .pulse-dot {
+            animation: pulseDot 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulseDot {
+            0%, 100% { 
+                box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+            }
+            50% { 
+                box-shadow: 0 0 0 12px rgba(52, 211, 153, 0);
+            }
+        }
+
+        /* ============================================
+           CARD HOVER
+        ============================================ */
+        .card-hover {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 30px 60px rgba(251, 191, 36, 0.15);
+        }
+
+        /* ============================================
+           STORYTELLING TIMELINE
+        ============================================ */
+        .timeline-line {
+            background: linear-gradient(to bottom, #fbbf24, #ef4444, #34d399);
+        }
+
+        /* ============================================
+           MOBILE MENU
+        ============================================ */
+        @media (max-width: 768px) {
+            .hero-title { font-size: 2.5rem !important; }
+            .hero-subtitle { font-size: 1.1rem !important; }
+        }
+
+        /* ============================================
+           SCROLLBAR
+        ============================================ */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0a0e1a; }
+        ::-webkit-scrollbar-thumb { 
+            background: #fbbf24; 
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
+
+        /* ============================================
+           NOISE BACKGROUND
+        ============================================ */
+        .noise-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.03;
+            z-index: 1;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' /%3E%3C/svg%3E");
+        }
+
+        /* ============================================
+           GRID BACKGROUND
+        ============================================ */
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(251, 191, 36, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(251, 191, 36, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+    </style>
+</head>
+<body class="bg-[#0a0e1a] text-white">
+
+    <div class="noise-bg"></div>
+
+    <!-- ==========================================================
+         NAVEGAÇÃO FIXA
+    ========================================================== -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-[#0a0e1a]/80 backdrop-blur-lg border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center font-black text-[#0a0e1a] text-lg">
+                    2B
+                </div>
+                <span class="text-xl font-bold tracking-tight">2BIP</span>
+            </div>
+            <div class="hidden md:flex items-center gap-8 text-sm text-slate-400">
+                <a href="#problema" class="hover:text-amber-400 transition-colors">O Problema</a>
+                <a href="#solucao" class="hover:text-amber-400 transition-colors">A Solução</a>
+                <a href="#barreira" class="hover:text-amber-400 transition-colors">A Barreira</a>
+                <a href="#resultados" class="hover:text-amber-400 transition-colors">Resultados</a>
+            </div>
+            <a href="#contato" class="bg-amber-500 hover:bg-amber-400 text-[#0a0e1a] font-bold px-5 py-2 rounded-lg text-sm transition-all">
+                Agendar Demo
+            </a>
+        </div>
+    </nav>
+
+    <!-- ==========================================================
+         SEÇÃO 1: HERO — A PROMESSA
+    ========================================================== -->
+    <section class="min-h-screen flex items-center justify-center relative grid-bg pt-20">
+        <div class="max-w-6xl mx-auto px-6 text-center relative z-10">
+            
+            <div class="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-5 py-2 mb-8 fade-in">
+                <span class="w-2 h-2 bg-amber-400 rounded-full pulse-dot"></span>
+                <span class="text-amber-400 text-sm font-semibold tracking-wide">LOGÍSTICA 4.0 · CONFERÊNCIA INTELIGENTE</span>
+            </div>
+
+            <h1 class="hero-title text-6xl md:text-8xl font-black leading-none mb-8 fade-in fade-in-delay-1">
+                Nenhum volume<br>
+                <span class="gradient-text">sai errado.</span><br>
+                Nunca mais.
+            </h1>
+
+            <p class="hero-subtitle text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed fade-in fade-in-delay-2">
+                O <strong class="text-white">2BIP</strong> é a barreira inteligente que impede que uma etiqueta seja colada 
+                no volume errado — <span class="text-amber-400">em tempo real, no momento da conferencia.</span>
+            </p>
+
+            <div class="flex flex-wrap justify-center gap-4 mb-16 fade-in fade-in-delay-3">
+                <a href="#problema" class="bg-amber-500 hover:bg-amber-400 text-[#0a0e1a] font-bold px-8 py-4 rounded-xl transition-all text-lg">
+                    Ver como funciona →
+                </a>
+                <a href="#contato" class="border border-slate-700 hover:border-amber-500 text-white font-bold px-8 py-4 rounded-xl transition-all text-lg">
+                    Agendar demonstração
+                </a>
+            </div>
+
+            <div class="grid grid-cols-3 gap-6 max-w-2xl mx-auto fade-in fade-in-delay-4">
+                <div class="text-center">
+                    <div class="text-4xl font-black gradient-text-green">0</div>
+                    <div class="text-xs text-slate-500 mt-1 uppercase tracking-wide">Trocas de etiqueta</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-black gradient-text-green">2s</div>
+                    <div class="text-xs text-slate-500 mt-1 uppercase tracking-wide">Por conferência</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-black gradient-text-green">100%</div>
+                    <div class="text-xs text-slate-500 mt-1 uppercase tracking-wide">Rastreável</div>
+                </div>
+            </div>
+
+            <div class="scroll-indicator mt-20 text-slate-600 text-3xl">
+                ↓
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================================
+         SEÇÃO 2: O PROBLEMA — A DOR
+    ========================================================== -->
+    <section id="problema" class="py-32 relative">
+        <div class="max-w-6xl mx-auto px-6">
+            
+            <div class="text-center mb-20 fade-in">
+                <span class="text-red-400 text-sm font-bold uppercase tracking-widest">O Problema</span>
+                <h2 class="text-5xl md:text-6xl font-black mt-4 mb-6">
+                    Uma etiqueta errada<br>
+                    <span class="text-red-400">custa caro.</span>
+                </h2>
+                <p class="text-xl text-slate-400 max-w-3xl mx-auto">
+                    E o pior: você só descobre quando o cliente abre a caixa.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6 mb-16">
+                
+                <div class="bg-slate-900/50 border border-red-500/20 rounded-2xl p-8 card-hover fade-in">
+                    <div class="text-5xl mb-4">📦</div>
+                    <h3 class="text-xl font-bold mb-3 text-white">Volume trocado</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">
+                        O conferente cola a etiqueta no volume errado. O cliente recebe o produto 
+                        de outro pedido.
+                    </p>
+                </div>
+
+                <div class="bg-slate-900/50 border border-red-500/20 rounded-2xl p-8 card-hover fade-in fade-in-delay-1">
+                    <div class="text-5xl mb-4">💸</div>
+                    <h3 class="text-xl font-bold mb-3 text-white">Prejuízo em cascata</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">
+                        Devolução, retrabalho, frete extra, cliente insatisfeito. O custo real é 
+                        <strong class="text-red-400">até 10x</strong> o valor do frete original.
+                    </p>
+                </div>
+
+                <div class="bg-slate-900/50 border border-red-500/20 rounded-2xl p-8 card-hover fade-in fade-in-delay-2">
+                    <div class="text-5xl mb-4">📉</div>
+                    <h3 class="text-xl font-bold mb-3 text-white">Imagem arranhada</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">
+                        Cada erro é uma chance de perder o contrato com o cliente. 
+                        A confiança não volta com um pedido de desculpas.
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="bg-red-900/10 border border-red-500/30 rounded-2xl p-8 text-center max-w-3xl mx-auto fade-in fade-in-delay-3">
+                <div class="text-5xl font-black text-red-400 mb-2">60%</div>
+                <p class="text-slate-400">
+                    das devoluções no transporte são causadas por <strong class="text-white">erros de expedição</strong> — 
+                    e a maioria começa com uma etiqueta colada no volume errado.
+                </p>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ==========================================================
+         SEÇÃO 3: A SOLUÇÃO — O 2BIP
+    ========================================================== -->
+    <section id="solucao" class="py-32 relative bg-slate-900/30">
+        <div class="max-w-6xl mx-auto px-6">
+            
+            <div class="text-center mb-20 fade-in">
+                <span class="text-emerald-400 text-sm font-bold uppercase tracking-widest">A Solução</span>
+                <h2 class="text-5xl md:text-6xl font-black mt-4 mb-6">
+                    Um leitor.<br>
+                    <span class="gradient-text-green">Dois bips.</span><br>
+                    Zero erros.
+                </h2>
+                <p class="text-xl text-slate-400 max-w-3xl mx-auto">
+                    O 2BIP confere, em tempo real, se a etiqueta que o conferente vai colar 
+                    pertence <strong class="text-white">exatamente àquele volume</strong>.
+                </p>
+            </div>
+
+            <!-- Timeline do processo -->
+            <div class="relative max-w-4xl mx-auto">
+                
+                <div class="absolute left-8 top-0 bottom-0 w-0.5 timeline-line opacity-30"></div>
+
+                <!-- Passo 1 -->
+                <div class="relative flex gap-6 mb-16 fade-in">
+                    <div class="flex-shrink-0 w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center text-2xl font-black text-[#0a0e1a] relative z-10">
+                        1
+                    </div>
+                    <div class="flex-1 bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-2">O conferente bipa a etiqueta da Transportadora</h3>
+                        <p class="text-slate-400 text-sm mb-4">A etiqueta da transportadora é lida pelo coletor.</p>
+                        <div class="bg-black/50 rounded-lg px-4 py-3 font-mono text-amber-400 text-sm">
+                            🏷️ 07901096219377
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Passo 2 -->
+                <div class="relative flex gap-6 mb-16 fade-in fade-in-delay-1">
+                    <div class="flex-shrink-0 w-16 h-16 bg-amber-500 rounded-2xl flex items-center justify-center text-2xl font-black text-[#0a0e1a] relative z-10">
+                        2
+                    </div>
+                    <div class="flex-1 bg-slate-900/50 border border-slate-800 rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-2">Bipa o código do volume</h3>
+                        <p class="text-slate-400 text-sm mb-4">O código de barras do cliente é lido do volume físico.</p>
+                        <div class="bg-black/50 rounded-lg px-4 py-3 font-mono text-amber-400 text-sm">
+                            📦 1189189600024300184172100010004
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Passo 3 -->
+                <div class="relative flex gap-6 fade-in fade-in-delay-2">
+                    <div class="flex-shrink-0 w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center text-2xl font-black text-[#0a0e1a] relative z-10">
+                        3
+                    </div>
+                    <div class="flex-1 bg-emerald-900/20 border border-emerald-500/30 rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-2 text-emerald-400">Validação instantânea ✅</h3>
+                        <p class="text-slate-400 text-sm">
+                            O sistema cruza os dados com o banco em <strong class="text-white">menos de 1 segundo</strong>. 
+                            Se estiver correto, libera. Se não, <strong class="text-red-400">a barreira bloqueia</strong>.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ==========================================================
+         SEÇÃO 4: A BARREIRA — O DIFERENCIAL
+    ========================================================== -->
+    <section id="barreira" class="py-32 relative">
+        <div class="max-w-6xl mx-auto px-6">
+            
+            <div class="text-center mb-20 fade-in">
+                <span class="text-red-400 text-sm font-bold uppercase tracking-widest">A Barreira Inteligente</span>
+                <h2 class="text-5xl md:text-6xl font-black mt-4 mb-6">
+                    O volume errado<br>
+                    <span class="text-red-400">não passa.</span>
+                </h2>
+                <p class="text-xl text-slate-400 max-w-3xl mx-auto">
+                    Não é um alerta. Não é um aviso. É um <strong class="text-white">bloqueio físico</strong> na esteira 
+                    da conferência. O 2BIP para o processo antes do erro sair da doca.
+                </p>
+            </div>
+
+            <!-- Simulação visual -->
+            <div class="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto mb-16">
+                
+                <!-- VOLUME CERTO -->
+                <div class="bg-gradient-to-br from-emerald-900/30 to-emerald-900/10 border-2 border-emerald-500/50 rounded-3xl p-8 card-hover fade-in">
+                    <div class="flex items-center justify-between mb-6">
+                        <span class="text-emerald-400 font-bold text-lg">✅ Volume Correto</span>
+                        <span class="text-3xl">🟢</span>
+                    </div>
+                    
+                    <div class="bg-black/40 rounded-2xl p-5 mb-6 space-y-3">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">NR:</span>
+                            <span class="font-mono text-white">07901096219377</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">Volume:</span>
+                            <span class="font-mono text-emerald-400">1189189600024300...</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">Banco:</span>
+                            <span class="font-mono text-emerald-400">1189189600024300...</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-emerald-500/20 border border-emerald-500/50 rounded-2xl p-6 text-center">
+                        <div class="text-5xl mb-3">✅</div>
+                        <div class="text-emerald-400 font-black text-xl mb-1">LIBERADO</div>
+                        <div class="text-xs text-slate-400">A barreira se abre. O volume segue.</div>
+                    </div>
+                </div>
+
+                <!-- VOLUME ERRADO -->
+                <div class="bg-gradient-to-br from-red-900/30 to-red-900/10 border-2 border-red-500/50 rounded-3xl p-8 card-hover fade-in fade-in-delay-1 relative overflow-hidden">
+                    
+                    <!-- Barreira animada -->
+                    <div class="absolute right-0 top-0 bottom-0 w-2 bg-red-500 barreira-animada"></div>
+                    
+                    <div class="flex items-center justify-between mb-6">
+                        <span class="text-red-400 font-bold text-lg">❌ Volume Errado</span>
+                        <span class="text-3xl volume-bloqueado">🚫</span>
+                    </div>
+                    
+                    <div class="bg-black/40 rounded-2xl p-5 mb-6 space-y-3">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">NR:</span>
+                            <span class="font-mono text-white">07901096219377</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">Volume:</span>
+                            <span class="font-mono text-red-400">1189189600024310...</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">Banco:</span>
+                            <span class="font-mono text-red-400">1189189600024300...</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-red-500/20 border border-red-500/50 rounded-2xl p-6 text-center">
+                        <div class="text-5xl mb-3">🚧</div>
+                        <div class="text-red-400 font-black text-xl mb-1">BLOQUEADO</div>
+                        <div class="text-xs text-slate-400">A barreira impede a saída. Troca detectada.</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Explicação da barreira -->
+            <div class="bg-amber-900/10 border border-amber-500/30 rounded-3xl p-10 max-w-4xl mx-auto text-center fade-in fade-in-delay-2">
+                <div class="text-4xl mb-4">🛡️</div>
+                <h3 class="text-2xl font-bold mb-4">Por que "barreira" e não "alerta"?</h3>
+                <p class="text-slate-400 leading-relaxed">
+                    Um alerta pode ser ignorado. Uma barreira, não. O 2BIP foi desenhado para 
+                    <strong class="text-amber-400">interromper o processo</strong> no exato momento em que 
+                    a troca de etiqueta é detectada — antes que o volume errado seja embarcado.
+                </p>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ==========================================================
+         SEÇÃO 5: FUNCIONALIDADES — O PRODUTO
+    ========================================================== -->
+    <section class="py-32 bg-slate-900/30">
+        <div class="max-w-6xl mx-auto px-6">
+            
+            <div class="text-center mb-20 fade-in">
+                <span class="text-amber-400 text-sm font-bold uppercase tracking-widest">O Sistema</span>
+                <h2 class="text-5xl md:text-6xl font-black mt-4 mb-6">
+                    Tudo que o 2BIP<br>
+                    <span class="gradient-text">entrega pra você</span>
+                </h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 card-hover fade-in">
+                    <div class="text-4xl mb-4">📱</div>
+                    <h3 class="text-lg font-bold mb-3">Mobile + Coletor</h3>
+                    <p class="text-slate-400 text-sm">Funciona no coletor mobile com leitura automática ou coletor tradicional.</p>
+                </div>
+
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 card-hover fade-in fade-in-delay-1">
+                    <div class="text-4xl mb-4">🗣️</div>
+                    <h3 class="text-lg font-bold mb-3">Feedback por voz</h3>
+                    <p class="text-slate-400 text-sm">Voz avisa em tempo real quando a Etiqueta não está na base ou o volume não pertence à etiqueta.</p>
+                </div>
+
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 card-hover fade-in fade-in-delay-2">
+                    <div class="text-4xl mb-4">📊</div>
+                    <h3 class="text-lg font-bold mb-3">Dashboard em tempo real</h3>
+                    <p class="text-slate-400 text-sm">Veja volumes conferidos, taxa de sucesso, divergências e performance por conferente.</p>
+                </div>
+
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 card-hover fade-in">
+                    <div class="text-4xl mb-4">🔄</div>
+                    <h3 class="text-lg font-bold mb-3">Importação inteligente</h3>
+                    <p class="text-slate-400 text-sm">Importe planilhas do SSW, Excel ou CSV com mapeamento automático de colunas e validação de duplicatas.</p>
+                </div>
+
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 card-hover fade-in fade-in-delay-1">
+                    <div class="text-4xl mb-4">🔒</div>
+                    <h3 class="text-lg font-bold mb-3">Multi-empresa</h3>
+                    <p class="text-slate-400 text-sm">Cada transportadora tem seus próprios dados, usuários e permissões. Isolamento total.</p>
+                </div>
+
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-8 card-hover fade-in fade-in-delay-2">
+                    <div class="text-4xl mb-4">📋</div>
+                    <h3 class="text-lg font-bold mb-3">Histórico completo</h3>
+                    <p class="text-slate-400 text-sm">Cada bipagem é registrada com etiqueta, volume, conferente, data e status. Rastreabilidade 100%.</p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================================
+         SEÇÃO 6: RESULTADOS — A TRANSFORMAÇÃO
+    ========================================================== -->
+    <section id="resultados" class="py-32">
+        <div class="max-w-6xl mx-auto px-6">
+            
+            <div class="text-center mb-20 fade-in">
+                <span class="text-emerald-400 text-sm font-bold uppercase tracking-widest">Resultados</span>
+                <h2 class="text-5xl md:text-6xl font-black mt-4 mb-6">
+                    O que muda<br>
+                    <span class="gradient-text-green">no seu dia a dia</span>
+                </h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 mb-16">
+                
+                <div class="text-center bg-slate-900/50 border border-emerald-500/20 rounded-3xl p-10 card-hover fade-in">
+                    <div class="text-6xl font-black gradient-text-green mb-2">-60%</div>
+                    <div class="text-sm text-slate-400 uppercase tracking-wide mb-4">Devoluções</div>
+                    <p class="text-slate-500 text-sm">Menos retrabalho, menos custo, menos dor de cabeça.</p>
+                </div>
+
+                <div class="text-center bg-slate-900/50 border border-emerald-500/20 rounded-3xl p-10 card-hover fade-in fade-in-delay-1">
+                    <div class="text-6xl font-black gradient-text-green mb-2">2s</div>
+                    <div class="text-sm text-slate-400 uppercase tracking-wide mb-4">Por conferência</div>
+                    <p class="text-slate-500 text-sm">Rápido o suficiente pra não travar a doca.</p>
+                </div>
+
+                <div class="text-center bg-slate-900/50 border border-emerald-500/20 rounded-3xl p-10 card-hover fade-in fade-in-delay-2">
+                    <div class="text-6xl font-black gradient-text-green mb-2">100%</div>
+                    <div class="text-sm text-slate-400 uppercase tracking-wide mb-4">Rastreável</div>
+                    <p class="text-slate-500 text-sm">Cada volume, cada bip, cada conferente. Tudo registrado.</p>
+                </div>
+
+            </div>
+
+            <!-- Depoimento -->
+            <div class="bg-slate-900/50 border border-slate-800 rounded-3xl p-10 max-w-3xl mx-auto fade-in fade-in-delay-3">
+                <div class="text-5xl text-amber-400 mb-4">"</div>
+                <p class="text-lg text-slate-300 italic mb-6">
+                    Antes a gente tinha devolução toda semana. Depois do 2BIP, <strong class="text-white">zero erros em 3 meses</strong>. 
+                    O conferente confia no sistema, e a gente dorme tranquilo.
+                </p>
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center font-bold text-amber-400">
+                        JT
+                    </div>
+                    <div>
+                        <div class="font-bold text-white">João Transportes</div>
+                        <div class="text-xs text-slate-500">Operação de 200+ volumes/dia</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ==========================================================
+         SEÇÃO 7: CTA FINAL
+    ========================================================== -->
+    <section id="contato" class="py-32 bg-gradient-to-b from-transparent to-amber-900/10">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            
+            <div class="text-7xl mb-6 fade-in">🚀</div>
+            
+            <h2 class="text-5xl md:text-6xl font-black mb-6 fade-in fade-in-delay-1">
+                Pronto pra <span class="gradient-text">zerar</span><br>
+                os erros de expedição?
+            </h2>
+            
+            <p class="text-xl text-slate-400 mb-12 fade-in fade-in-delay-2">
+                Implementação em <strong class="text-white">7 dias</strong>. Sem obra, sem hardware caro, 
+                sem mudar seu processo de conferência.
+            </p>
+
+            <div class="grid md:grid-cols-3 gap-4 mb-12 fade-in fade-in-delay-3">
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5">
+                    <div class="text-2xl mb-2">⚡</div>
+                    <div class="text-sm text-slate-300">Implantação rápida</div>
+                </div>
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5">
+                    <div class="text-2xl mb-2">🎯</div>
+                    <div class="text-sm text-slate-300">Suporte dedicado</div>
+                </div>
+                <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-5">
+                    <div class="text-2xl mb-2">💳</div>
+                    <div class="text-sm text-slate-300">Planos flexíveis</div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap justify-center gap-4 fade-in fade-in-delay-4">
+                <a href="#" class="bg-amber-500 hover:bg-amber-400 text-[#0a0e1a] font-bold px-10 py-5 rounded-xl transition-all text-lg glow-amber">
+                    📅 Agendar Demonstração
+                </a>
+                <a href="#" class="border border-slate-700 hover:border-amber-500 text-white font-bold px-10 py-5 rounded-xl transition-all text-lg">
+                    📄 Baixar Proposta
+                </a>
+            </div>
+
+            <p class="text-xs text-slate-600 mt-8">
+                Nenhum cartão de crédito necessário para demonstração.
+            </p>
+
+        </div>
+    </section>
+
+    <!-- ==========================================================
+         FOOTER
+    ========================================================== -->
+    <footer class="border-t border-slate-800 py-10">
+        <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center font-black text-[#0a0e1a] text-sm">
+                    2B
+                </div>
+                <span class="font-bold">2BIP</span>
+                <span class="text-slate-600 text-sm">· FreteOnX</span>
+            </div>
+            <div class="text-xs text-slate-600">
+                © 2026 2BIP · Sistema de Conferência Inteligente
+            </div>
+        </div>
+    </footer>
+
+    <!-- ==========================================================
+         SCRIPT DE ANIMAÇÃO
+    ========================================================== -->
+    <script>
+        // ==========================================================
+        // ANIMAÇÃO DE ENTRADA (fade-in ao scroll)
+        // ==========================================================
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        });
+
+        document.querySelectorAll('.fade-in').forEach(el => {
+            observer.observe(el);
+        });
+
+        // ==========================================================
+        // EFEITO DE PARALLAX SUAVE NO HERO
+        // ==========================================================
+
+        let ticking = false;
+        window.addEventListener('scroll', () => {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    const scrolled = window.pageYOffset;
+                    const heroTitle = document.querySelector('.hero-title');
+                    if (heroTitle && scrolled < 800) {
+                        heroTitle.style.transform = `translateY(${scrolled * 0.15}px)`;
+                        heroTitle.style.opacity = 1 - (scrolled / 800);
+                    }
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        });
+
+        // ==========================================================
+        // SCROLL SUAVE PARA ÂNCORAS
+        // ==========================================================
+
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // ==========================================================
+        // ATUALIZA NAVEGAÇÃO ATIVA
+        // ==========================================================
+
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('nav a[href^="#"]');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (window.pageYOffset >= sectionTop - 200) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('text-amber-400');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.add('text-amber-400');
+                }
+            });
+        });
+
+        console.log('🚀 Landing 2BIP carregada com sucesso!');
+    </script>
+
+</body>
+</html>

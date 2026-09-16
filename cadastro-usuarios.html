@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Usuários</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+        window.supabaseClient = createClient(
+            'https://fqrfknyludtvqaaajjoc.supabase.co',
+            'sb_publishable_fkC9WhreuFmhmbVRCw6Isw_rftuBACx'
+        );
+        window.dispatchEvent(new Event('supabase-ready'));
+    </script>
+</head>
+
+<body class="bg-slate-900 text-white min-h-screen p-6">
+
+    <div class="max-w-4xl mx-auto">
+
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-white">👥 Cadastro de Usuários</h1>
+                <p class="text-slate-400 text-sm">Gerencie os usuários do sistema de conferência</p>
+            </div>
+            <a href="login.html" class="text-amber-400 hover:text-amber-300 text-sm">← Voltar ao Login</a>
+        </header>
+
+        <!-- Formulário de Cadastro -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700 mb-6">
+            <h2 class="text-lg font-semibold text-white mb-4">➕ Novo Usuário</h2>
+            
+            <form id="form-usuario" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm text-slate-300 mb-1">Nome completo *</label>
+                    <input type="text" id="nome" 
+                           class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
+                           placeholder="Ex: João Silva" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-slate-300 mb-1">Usuário *</label>
+                    <input type="text" id="usuario" 
+                           class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
+                           placeholder="Ex: joao" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-slate-300 mb-1">Senha *</label>
+                    <input type="password" id="senha" 
+                           class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
+                           placeholder="Mínimo 4 caracteres" required minlength="4">
+                </div>
+                
+                <div class="md:col-span-3">
+                    <button type="submit" 
+                            class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-lg transition-colors disabled:opacity-50">
+                        ➕ Cadastrar Usuário
+                    </button>
+                </div>
+            </form>
+            
+            <div id="form-status" class="mt-3 text-sm hidden"></div>
+        </div>
+
+        <!-- Lista de Usuários -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h2 class="text-lg font-semibold text-white mb-4">📋 Usuários Cadastrados</h2>
+            
+            <div id="lista-usuarios" class="space-y-2">
+                <div class="text-center text-slate-500 py-4">⏳ Carregando...</div>
+            </div>
+            
+            <div class="mt-4 text-xs text-slate-500 text-center">
+                Total: <span id="total-usuarios">0</span> usuários
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================================
+        // FUNÇÃO PARA OBTER O TENANT DO USUÁRIO LOGADO
+        // ==========================================================
+
+        function getTenantId() {
+            try {
+                const usuarioSalvo = localStorage.getItem('usuario_logado');
+                if (!usuarioSalvo) return null;
+                const dados = JSON.parse(usuarioSalvo);
+                return dados.tenant_id || null;
+            } catch (e) {
+                console.error('❌ Erro ao obter tenant:', e);
+                return null;
+            }
+        }
+
+
+        // ==========================================================
+        // VARIÁVEIS
+        // ==========================================================
+
+        let supabaseClient = null;
+
+        const form = document.getElementById('form-usuario');
+        const nomeInput = document.getElementById('nome');
+        const usuarioInput = document.getElementById('usuario');
+        const senhaInput = document.getElementById('senha');
+        const formStatus = document.getElementById('form-status');
+        const listaDiv = document.getElementById('lista-usuarios');
+        const totalSpan = document.getElementById('total-usuarios');
+
+
+        // ==========================================================
+        // INICIALIZAÇÃO
+        // ==========================================================
+
+        window.addEventListener('supabase-ready', () => {
+            supabaseClient = window.supabaseClient;
+            console.log('✅ Supabase conectado');
+            carregarUsuarios();
+        });
+
+        setTimeout(() => {
+            if (!supabaseClient && window.supabaseClient) {
+                supabaseClient = window.supabaseClient;
+                console.log('✅ Supabase conectado (fallback)');
+                carregarUsuarios();
+            }
+        }, 2000);
+
+
+        // ==========================================================
+        // CARREGAR USUÁRIOS (COM FILTRO DE TENANT)
+        // ==========================================================
+
+        async function carregarUsuarios() {
+            if (!supabaseClient) {
+                listaDiv.innerHTML = '<div class="text-center text-red-400 py-4">❌ Erro de conexão</div>';
+                return;
+            }
+
+            try {
+                const tenantId = getTenantId();
+                let query = supabaseClient.from('usuarios').select('*');
+
+                if (tenantId) {
+                    query = query.eq('tenant_id', tenantId);
+                }
+
+                const { data: usuarios, error } = await query.order('nome');
+
+                if (error) throw error;
+
+                if (!usuarios || usuarios.length === 0) {
+                    listaDiv.innerHTML = '<div class="text-center text-slate-500 py-4">📭 Nenhum usuário cadastrado</div>';
+                    totalSpan.textContent = '0';
+                    return;
+                }
+
+                totalSpan.textContent = usuarios.length;
+
+                listaDiv.innerHTML = usuarios.map(u => `
+                    <div class="flex justify-between items-center bg-slate-700/30 px-4 py-2 rounded-lg">
+                        <div>
+                            <span class="font-medium text-white">${u.nome}</span>
+                            <span class="text-slate-400 text-sm ml-2">(@${u.usuario})</span>
+                            ${u.ativo === false ? '<span class="text-red-400 text-xs ml-2">🚫 Inativo</span>' : ''}
+                            ${u.role === 'admin' ? '<span class="text-amber-400 text-xs ml-2">👑 Admin</span>' : ''}
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-500">${new Date(u.criado_em).toLocaleDateString('pt-BR')}</span>
+                            <button onclick="toggleUsuario(${u.id}, ${u.ativo})" 
+                                    class="text-xs ${u.ativo ? 'text-yellow-400 hover:text-yellow-300' : 'text-green-400 hover:text-green-300'}">
+                                ${u.ativo ? '🔴 Desativar' : '🟢 Ativar'}
+                            </button>
+                            <button onclick="excluirUsuario(${u.id})" 
+                                    class="text-xs text-red-400 hover:text-red-300">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                console.error('❌ Erro ao carregar usuários:', err);
+                listaDiv.innerHTML = '<div class="text-center text-red-400 py-4">❌ Erro ao carregar usuários</div>';
+            }
+        }
+
+
+        // ==========================================================
+        // CADASTRAR USUÁRIO (COM TENANT)
+        // ==========================================================
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const nome = nomeInput.value.trim();
+            const usuario = usuarioInput.value.trim().toLowerCase();
+            const senha = senhaInput.value.trim();
+
+            if (!nome || !usuario || !senha) {
+                mostrarStatus('⚠️ Preencha todos os campos', 'text-red-400');
+                return;
+            }
+
+            if (senha.length < 4) {
+                mostrarStatus('⚠️ A senha deve ter pelo menos 4 caracteres', 'text-red-400');
+                return;
+            }
+
+            if (!supabaseClient) {
+                mostrarStatus('❌ Erro de conexão com o banco de dados', 'text-red-400');
+                return;
+            }
+
+            const btn = form.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.textContent = '⏳ Cadastrando...';
+            mostrarStatus('', '');
+
+            try {
+                // Verifica se o usuário já existe
+                const { data: existe, error: checkError } = await supabaseClient
+                    .from('usuarios')
+                    .select('usuario')
+                    .eq('usuario', usuario)
+                    .maybeSingle();
+
+                if (checkError) throw checkError;
+
+                if (existe) {
+                    mostrarStatus(`⚠️ O usuário "${usuario}" já está cadastrado`, 'text-red-400');
+                    btn.disabled = false;
+                    btn.textContent = '➕ Cadastrar Usuário';
+                    return;
+                }
+
+                // 🔥 OBTÉM O TENANT DO USUÁRIO LOGADO
+                const tenantId = getTenantId();
+
+                // Insere o novo usuário com tenant_id
+                const { data, error } = await supabaseClient
+                    .from('usuarios')
+                    .insert({
+                        nome: nome,
+                        usuario: usuario,
+                        senha: senha,
+                        role: 'conferente',
+                        ativo: true,
+                        tenant_id: tenantId,
+                        criado_em: new Date().toISOString()
+                    });
+
+                if (error) throw error;
+
+                mostrarStatus(`✅ Usuário "${usuario}" cadastrado com sucesso!`, 'text-green-400');
+                
+                // Limpa o formulário
+                nomeInput.value = '';
+                usuarioInput.value = '';
+                senhaInput.value = '';
+                nomeInput.focus();
+
+                // Recarrega a lista
+                carregarUsuarios();
+
+            } catch (err) {
+                console.error('❌ Erro ao cadastrar:', err);
+                mostrarStatus(`❌ Erro ao cadastrar: ${err.message}`, 'text-red-400');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '➕ Cadastrar Usuário';
+            }
+        });
+
+
+        // ==========================================================
+        // FUNÇÕES AUXILIARES
+        // ==========================================================
+
+        function mostrarStatus(mensagem, classe) {
+            if (mensagem) {
+                formStatus.textContent = mensagem;
+                formStatus.className = `mt-3 text-sm font-semibold ${classe}`;
+                formStatus.classList.remove('hidden');
+            } else {
+                formStatus.classList.add('hidden');
+            }
+        }
+
+        window.toggleUsuario = async function(id, ativo) {
+            if (!confirm(`Deseja ${ativo ? 'desativar' : 'ativar'} este usuário?`)) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('usuarios')
+                    .update({ ativo: !ativo })
+                    .eq('id', id);
+
+                if (error) throw error;
+                carregarUsuarios();
+            } catch (err) {
+                console.error('❌ Erro ao atualizar usuário:', err);
+                alert('Erro ao atualizar usuário');
+            }
+        };
+
+        window.excluirUsuario = async function(id) {
+            if (!confirm('Deseja realmente excluir este usuário permanentemente?')) return;
+
+            try {
+                const { error } = await supabaseClient
+                    .from('usuarios')
+                    .delete()
+                    .eq('id', id);
+
+                if (error) throw error;
+                carregarUsuarios();
+            } catch (err) {
+                console.error('❌ Erro ao excluir usuário:', err);
+                alert('Erro ao excluir usuário');
+            }
+        };
+    </script>
+
+</body>
+</html>

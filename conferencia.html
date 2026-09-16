@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conferência por Duplo Bip - FreteOnX</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        window.createSupabaseClient = createClient;
+
+        window.dispatchEvent(new Event('supabase-ready'));
+    </script>
+</head>
+
+<body id="app-bg"
+      class="bg-slate-900 text-white h-screen flex flex-col justify-between transition-colors duration-150">
+
+    <!-- Cabeçalho -->
+    <header class="p-4 bg-slate-800 shadow-md text-center">
+        <h1 class="text-xl font-bold">Conferência de Carga</h1>
+        <p class="text-xs text-slate-400">Sistema de Duplo Bip (NR + Volume)</p>
+    </header>
+
+    <!-- Área Principal -->
+    <main class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+
+        <!-- STATUS BOX -->
+        <div id="status-box"
+             class="w-full max-w-md p-8 rounded-2xl bg-slate-800 shadow-2xl border border-slate-700 transition-all duration-150">
+
+            <h2 id="instruction-title" class="text-lg font-semibold text-slate-300 mb-2">
+                Aguardando Leitura...
+            </h2>
+
+            <p id="instruction-sub" class="text-sm text-slate-400 mb-6">
+                Bipe a etiqueta <strong>NR</strong>
+            </p>
+
+            <!-- Indicador de processamento -->
+            <div id="processing-indicator" class="hidden mb-4 p-2 bg-amber-900/50 border border-amber-500 rounded-lg">
+                <div class="flex items-center justify-center gap-2">
+                    <div class="w-3 h-3 bg-amber-400 rounded-full animate-pulse"></div>
+                    <span class="text-xs text-amber-300 font-semibold">⏳ Processando...</span>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-left">
+                <div>
+                    <label class="text-xs text-slate-400 block">NR Lida:</label>
+                    <span id="display-nr" class="text-xl font-mono font-bold text-amber-400">-</span>
+                </div>
+
+                <div>
+                    <label class="text-xs text-slate-400 block">Volume Lido:</label>
+                    <span id="display-volume" class="text-xl font-mono font-bold text-amber-400">-</span>
+                </div>
+
+                <!-- NOVO: Código limpo (para debug) -->
+                <div id="debug-info" class="hidden mt-2 p-2 bg-slate-700/50 border border-slate-600 rounded-lg">
+                    <span class="text-xs text-slate-400 block font-bold">🔍 Código capturado:</span>
+                    <span id="display-raw" class="text-xs font-mono text-slate-300 break-all">-</span>
+                </div>
+
+                <div id="cliente-info" class="hidden mt-2 p-2 bg-blue-900/50 border border-blue-500 rounded-lg">
+                    <span class="text-xs text-blue-300 block font-bold">📋 CLIENTE:</span>
+                    <span id="display-cliente" class="text-sm font-mono text-white">-</span>
+                </div>
+
+                <div id="match-info" class="hidden mt-2 p-2 bg-green-900/50 border border-green-500 rounded-lg">
+                    <span class="text-xs text-green-300 block font-bold">✅ VOLUME CLIE ENCONTRADO:</span>
+                    <span id="display-match" class="text-sm font-mono text-white">-</span>
+                </div>
+
+                <div id="error-details" class="hidden mt-4 p-3 bg-red-900/50 border border-red-500 rounded-lg">
+                    <span class="text-xs text-red-300 block font-bold">⚠️ ATENÇÃO:</span>
+                    <span id="display-info-extra" class="text-sm font-mono text-white">-</span>
+                </div>
+            </div>
+        </div>
+
+        <input type="text"
+               id="barcode-input"
+               class="opacity-0 absolute -top-10"
+               autofocus
+               autocomplete="off">
+    </main>
+
+    <!-- Rodapé -->
+    <footer class="p-3 bg-slate-800 text-center text-xs text-slate-400 flex justify-between items-center">
+        <span>Status: <span id="connection-status" class="text-yellow-400">Conectando ao Supabase...</span></span>
+        <div class="flex items-center gap-4">
+            <span id="usuario-logado" class="text-amber-400">👤 -</span>
+            <button id="btn-sair" class="text-red-400 hover:text-red-300 text-xs font-semibold transition-colors">
+                Sair
+            </button>
+        </div>
+    </footer>
+
+    <script>
+
+        // ==========================================================
+        // PROTEÇÃO DE ACESSO - VERIFICA SE O USUÁRIO ESTÁ LOGADO
+        // ==========================================================
+
+        function verificarLogin() {
+            const usuarioSalvo = localStorage.getItem('usuario_logado');
+            if (!usuarioSalvo) {
+                window.location.href = 'index.html';
+                return null;
+            }
+            try {
+                const dados = JSON.parse(usuarioSalvo);
+                if (!dados.usuario) {
+                    window.location.href = 'index.html';
+                    return null;
+                }
+                if (dados.role === 'admin') {
+                    const isInAdmin = window.location.pathname.includes('admin-layout.html') || 
+                                      (window.parent && window.parent.location.pathname.includes('admin-layout.html'));
+                    if (!isInAdmin) {
+                        window.location.href = 'admin-layout.html';
+                        return null;
+                    }
+                }
+                return dados;
+            } catch (e) {
+                window.location.href = 'index.html';
+                return null;
+            }
+        }
+
+        const usuarioLogado = verificarLogin();
+
+
+        // ==========================================================
+        // FUNÇÃO PARA OBTER O CONFERENTE LOGADO
+        // ==========================================================
+
+        function obterConferente() {
+            try {
+                const dados = localStorage.getItem('usuario_logado');
+                if (dados) {
+                    const parsed = JSON.parse(dados);
+                    return { nome: parsed.nome, usuario: parsed.usuario, role: parsed.role || 'conferente' };
+                }
+            } catch (e) {}
+            return { nome: 'Desconhecido', usuario: 'unknown', role: 'conferente' };
+        }
+
+
+        // ==========================================================
+        // FUNÇÃO PARA SAIR (LOGOUT)
+        // ==========================================================
+
+        function logout() {
+            localStorage.removeItem('usuario_logado');
+            localStorage.removeItem('conferente');
+            window.location.href = 'index.html';
+        }
+
+
+        // ==========================================================
+        // FUNÇÃO PARA SALVAR LOG DA CONFERÊNCIA (COM TENANT_ID)
+        // ==========================================================
+
+        async function salvarLogConferencia(dados) {
+            try {
+                // 🔥 PEGA O TENANT_ID DO USUÁRIO LOGADO
+                const usuarioLogado = JSON.parse(localStorage.getItem('usuario_logado') || '{}');
+                const tenantId = usuarioLogado.tenant_id || null;
+
+                await supabaseClient
+                    .from('conferencia_log')
+                    .insert({
+                        nr: dados.nr,
+                        volume_clie: dados.volume_clie,
+                        conferente: dados.conferente,
+                        status: dados.status,
+                        mensagem: dados.mensagem || null,
+                        tenant_id: tenantId,  // ← ADICIONADO!
+                        created_at: new Date().toISOString()
+                    });
+            } catch (err) {
+                console.error('❌ Erro ao salvar log:', err);
+            }
+        }
+
+
+        // ==========================================================
+        // FUNÇÃO PARA LIMPAR CÓDIGO (MAIS ROBUSTA)
+        // ==========================================================
+
+        function limparCodigo(codigo) {
+            if (!codigo) return '';
+            
+            let limpo = String(codigo);
+            
+            // Remove caracteres especiais e quebras de linha
+            limpo = limpo.replace(/[\r\n\t]/g, '');
+            
+            // Remove espaços extras
+            limpo = limpo.trim();
+            
+            // Remove caracteres não alfanuméricos (mantém apenas números e letras)
+            limpo = limpo.replace(/[^a-zA-Z0-9]/g, '');
+            
+            return limpo;
+        }
+
+
+        // ==========================================================
+        // FUNÇÃO PARA FALAR (VOZ FEMININA) - SOMENTE QUANDO NR NÃO EXISTE
+        // ==========================================================
+
+        function falar(texto) {
+            try {
+                if (!window.speechSynthesis) {
+                    console.warn('⚠️ Speech Synthesis não suportada neste navegador');
+                    return;
+                }
+
+                // Cancela qualquer fala anterior
+                window.speechSynthesis.cancel();
+
+                const utterance = new SpeechSynthesisUtterance(texto);
+                utterance.lang = 'pt-BR';
+                utterance.rate = 0.9;      // Velocidade ideal para entender
+                utterance.pitch = 1.1;     // Tom feminino (agudo)
+                utterance.volume = 1;      // Volume máximo
+
+                // Tenta encontrar uma voz feminina em português
+                const vozes = window.speechSynthesis.getVoices();
+                const vozFeminina = vozes.find(v => 
+                    v.lang.startsWith('pt') && 
+                    (v.name.toLowerCase().includes('female') || 
+                     v.name.toLowerCase().includes('zira') ||
+                     v.name.toLowerCase().includes('maria') ||
+                     v.name.toLowerCase().includes('daniela') ||
+                     v.name.toLowerCase().includes('samantha'))
+                );
+
+                if (vozFeminina) {
+                    utterance.voice = vozFeminina;
+                }
+
+                window.speechSynthesis.speak(utterance);
+                console.log(`🗣️ Falando: "${texto}"`);
+            } catch (e) {
+                console.warn('⚠️ Erro ao falar:', e);
+            }
+        }
+
+
+        // ==========================================================
+        // CONFIGURAÇÃO SUPABASE
+        // ==========================================================
+
+        const SUPABASE_URL = 'https://fqrfknyludtvqaaajjoc.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_fkC9WhreuFmhmbVRCw6Isw_rftuBACx';
+
+
+        /* ==========================================================
+           VARIÁVEIS GLOBAIS
+           ========================================================== */
+
+        let supabaseClient = null;
+        let etapa = 1;
+        let nrAtual = '';
+        let processando = false;
+        let timeoutFeedback = null;
+        let tentativasValidacao = 0;
+
+
+        /* ==========================================================
+           ELEMENTOS DA INTERFACE
+           ========================================================== */
+
+        const inputField = document.getElementById('barcode-input');
+        const appBg = document.getElementById('app-bg');
+        const statusBox = document.getElementById('status-box');
+        const instructionTitle = document.getElementById('instruction-title');
+        const instructionSub = document.getElementById('instruction-sub');
+        const displayNr = document.getElementById('display-nr');
+        const displayVolume = document.getElementById('display-volume');
+        const connectionStatus = document.getElementById('connection-status');
+        const errorDetails = document.getElementById('error-details');
+        const displayInfoExtra = document.getElementById('display-info-extra');
+        const clienteInfo = document.getElementById('cliente-info');
+        const displayCliente = document.getElementById('display-cliente');
+        const matchInfo = document.getElementById('match-info');
+        const displayMatch = document.getElementById('display-match');
+        const processingIndicator = document.getElementById('processing-indicator');
+        const debugInfo = document.getElementById('debug-info');
+        const displayRaw = document.getElementById('display-raw');
+
+
+        /* ==========================================================
+           INICIALIZAÇÃO SUPABASE
+           ========================================================== */
+
+        window.addEventListener('supabase-ready', () => inicializarSupabase());
+
+        window.addEventListener('load', () => {
+            inputField.focus();
+            if (window.createSupabaseClient && !supabaseClient) inicializarSupabase();
+            
+            const conferente = obterConferente();
+            const usuarioElement = document.getElementById('usuario-logado');
+            if (usuarioElement) {
+                usuarioElement.textContent = `👤 ${conferente.nome}`;
+            }
+
+            const btnSair = document.getElementById('btn-sair');
+            if (btnSair) {
+                btnSair.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (confirm('Deseja realmente encerrar a sessão?')) {
+                        logout();
+                    }
+                });
+            }
+
+            // Carrega vozes para speech synthesis
+            if (window.speechSynthesis) {
+                window.speechSynthesis.getVoices();
+                window.speechSynthesis.onvoiceschanged = () => {
+                    console.log('🗣️ Vozes carregadas:', window.speechSynthesis.getVoices().length);
+                };
+            }
+
+            // Ativa debug (pressione D para mostrar/ocultar)
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'd' && e.ctrlKey) {
+                    debugInfo.classList.toggle('hidden');
+                }
+            });
+        });
+
+        function inicializarSupabase() {
+            try {
+                if (!supabaseClient && window.createSupabaseClient) {
+                    supabaseClient = window.createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    testarConexao();
+                }
+            } catch (err) {
+                console.error("Erro ao iniciar cliente:", err);
+                connectionStatus.textContent = "Erro ao iniciar Supabase";
+                connectionStatus.className = "text-red-400";
+            }
+        }
+
+        async function testarConexao() {
+            if (!supabaseClient) return;
+            try {
+                const { error } = await supabaseClient.from('conferencia').select('id').limit(1);
+                if (error) {
+                    connectionStatus.textContent = "Conectado (Verifique permissões RLS)";
+                    connectionStatus.className = "text-orange-400";
+                } else {
+                    connectionStatus.textContent = "Conectado ao Supabase";
+                    connectionStatus.className = "text-green-400";
+                }
+            } catch (e) {
+                connectionStatus.textContent = "Erro de conexão de rede";
+                connectionStatus.className = "text-red-400";
+            }
+        }
+
+
+        /* ==========================================================
+           SONS
+           ========================================================== */
+
+        function tocarSom(tipo) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.type = 'sawtooth';
+
+                if (tipo === 'sucesso') {
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.1);
+                    
+                    setTimeout(() => {
+                        const osc2 = audioCtx.createOscillator();
+                        const gain2 = audioCtx.createGain();
+                        osc2.connect(gain2);
+                        gain2.connect(audioCtx.destination);
+                        osc2.frequency.setValueAtTime(1100, audioCtx.currentTime);
+                        gain2.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                        gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+                        osc2.start(audioCtx.currentTime);
+                        osc2.stop(audioCtx.currentTime + 0.08);
+                    }, 80);
+                    
+                } else if (tipo === 'erro') {
+                    osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.15);
+                    
+                } else {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(660, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.06);
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.06);
+                }
+
+            } catch (e) {}
+        }
+
+
+        /* ==========================================================
+           MANTÉM FOCO NO LEITOR
+           ========================================================== */
+
+        document.addEventListener('click', () => inputField.focus());
+
+
+        /* ==========================================================
+           LEITURA DO CÓDIGO DE BARRAS
+           ========================================================== */
+
+        inputField.addEventListener('keydown', async function(e) {
+            if (e.key === 'Enter' && !processando) {
+                processando = true;
+                tentativasValidacao = 0;
+                
+                // Mostra indicador de processamento
+                processingIndicator.classList.remove('hidden');
+                
+                try {
+                    const codigoBruto = inputField.value;
+                    const codigoLido = limparCodigo(codigoBruto);
+                    
+                    // Mostra o código bruto no debug
+                    displayRaw.textContent = codigoBruto || '-';
+                    debugInfo.classList.remove('hidden');
+                    
+                    inputField.value = '';
+                    
+                    console.log('🔍 Código bruto:', codigoBruto);
+                    console.log('🔍 Código limpo:', codigoLido);
+                    
+                    if (!codigoLido) { 
+                        processando = false;
+                        processingIndicator.classList.add('hidden');
+                        return; 
+                    }
+
+                    if (etapa === 1) {
+                        nrAtual = codigoLido;
+                        displayNr.textContent = nrAtual;
+                        displayVolume.textContent = '-';
+                        errorDetails.classList.add('hidden');
+                        clienteInfo.classList.add('hidden');
+                        matchInfo.classList.add('hidden');
+                        
+                        etapa = 2;
+                        instructionTitle.textContent = "Aguardando Volume...";
+                        instructionSub.innerHTML = "Bipe a etiqueta de <strong>Volume</strong>";
+                        tocarSom('neutro');
+                        
+                        processando = false;
+                        processingIndicator.classList.add('hidden');
+                        
+                    } else if (etapa === 2) {
+                        const volumeLido = codigoLido;
+                        displayVolume.textContent = volumeLido;
+                        await validarNoSupabase(nrAtual, volumeLido);
+                    }
+                } catch (err) {
+                    console.error('❌ Erro na leitura:', err);
+                    processando = false;
+                    processingIndicator.classList.add('hidden');
+                } finally {
+                    // Garante que o processamento seja liberado mesmo em caso de erro
+                    setTimeout(() => {
+                        processando = false;
+                        processingIndicator.classList.add('hidden');
+                    }, 500);
+                }
+            }
+        });
+
+
+        /* ==========================================================
+           VALIDAÇÃO NO SUPABASE - COM RETRY E VALIDAÇÃO DUPLA
+           ========================================================== */
+
+        async function validarNoSupabase(nr, volume) {
+            if (!supabaseClient) {
+                inicializarSupabase();
+                if (!supabaseClient) {
+                    setFeedbackVisual(false, "ERRO", "Supabase não conectado.");
+                    processando = false;
+                    processingIndicator.classList.add('hidden');
+                    return;
+                }
+            }
+
+            const nrLida = String(nr).trim();
+            const volumeLido = String(volume).trim();
+            const conferente = obterConferente();
+
+            try {
+                // 1. PRIMEIRA VALIDAÇÃO
+                const { data: registro, error } = await supabaseClient
+                    .from('conferencia')
+                    .select('*')
+                    .eq('nr', nrLida)
+                    .eq('volume_clie', volumeLido)
+                    .maybeSingle();
+
+                if (error) throw error;
+
+                // 2. SE NÃO ENCONTROU, TENTA NOVAMENTE (para evitar falso negativo)
+                if (!registro) {
+                    console.warn('⚠️ Primeira tentativa falhou, tentando novamente...');
+                    tentativasValidacao++;
+                    
+                    // Aguarda 300ms e tenta de novo
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    const { data: registro2, error: error2 } = await supabaseClient
+                        .from('conferencia')
+                        .select('*')
+                        .eq('nr', nrLida)
+                        .eq('volume_clie', volumeLido)
+                        .maybeSingle();
+                    
+                    if (error2) throw error2;
+                    
+                    if (registro2) {
+                        // Encontrou na segunda tentativa!
+                        console.log('✅ Encontrado na segunda tentativa!');
+                        await processarSucesso(registro2, nrLida, volumeLido, conferente);
+                        return;
+                    }
+                }
+
+                // 3. SE ENCONTROU NA PRIMEIRA OU CONTINUA NÃO ENCONTRADO
+                if (registro) {
+                    await processarSucesso(registro, nrLida, volumeLido, conferente);
+                } else {
+                    // 4. NÃO ENCONTROU - verifica se a NR existe
+                    const { data: nrExiste } = await supabaseClient
+                        .from('conferencia')
+                        .select('nr')
+                        .eq('nr', nrLida)
+                        .maybeSingle();
+
+                    let mensagemErro = '';
+                    if (!nrExiste) {
+                        mensagemErro = `NR ${nrLida} não existe na base`;
+                        
+                        // 🔊 VOZ FEMININA - SOMENTE QUANDO NR NÃO EXISTE
+                        falar("Atenção, esta NR não está na base de dados.");
+                        
+                        setFeedbackVisual(false, "❌ NR INVÁLIDA", mensagemErro);
+                    } else {
+                        mensagemErro = `Volume ${volumeLido} não pertence à NR ${nrLida}`;
+                        setFeedbackVisual(false, "❌ VOLUME INVÁLIDO", mensagemErro);
+                    }
+
+                    await salvarLogConferencia({
+                        nr: nrLida,
+                        volume_clie: volumeLido,
+                        conferente: conferente.nome || 'Desconhecido',
+                        status: 'erro',
+                        mensagem: mensagemErro
+                    });
+                }
+
+            } catch (err) {
+                console.error("❌ Erro detalhado no Supabase:", err);
+                setFeedbackVisual(false, "❌ ERRO", err.message || "Falha ao buscar dados.");
+            } finally {
+                processando = false;
+                processingIndicator.classList.add('hidden');
+            }
+        }
+
+        // ==========================================================
+        // FUNÇÃO AUXILIAR PARA PROCESSAR SUCESSO
+        // ==========================================================
+
+        async function processarSucesso(registro, nrLida, volumeLido, conferente) {
+            await salvarLogConferencia({
+                nr: nrLida,
+                volume_clie: volumeLido,
+                conferente: conferente.nome || 'Desconhecido',
+                status: 'sucesso',
+                mensagem: null
+            });
+
+            if (registro.cliente || registro.remetente) {
+                clienteInfo.classList.remove('hidden');
+                displayCliente.textContent = registro.cliente || registro.remetente || 'N/A';
+            } else {
+                clienteInfo.classList.add('hidden');
+            }
+
+            matchInfo.classList.remove('hidden');
+            displayMatch.textContent = volumeLido + ' ✅';
+
+            const msgExtra = tentativasValidacao > 0 ? ` (${tentativasValidacao}ª tentativa)` : '';
+            setFeedbackVisual(true, `✅ CONFERIDO${msgExtra}`, null);
+        }
+
+
+        /* ==========================================================
+           FEEDBACK VISUAL - MODO TURBO ⚡
+           ========================================================== */
+
+        function setFeedbackVisual(sucesso, mensagem, detalheExtra) {
+            if (timeoutFeedback) {
+                clearTimeout(timeoutFeedback);
+                timeoutFeedback = null;
+            }
+
+            instructionTitle.textContent = mensagem;
+
+            if (sucesso) {
+                appBg.className = "bg-green-600 text-white h-screen flex flex-col justify-between transition-colors duration-100";
+                statusBox.className = "w-full max-w-md p-8 rounded-2xl bg-green-700 shadow-2xl border border-green-500 transition-all duration-100";
+                errorDetails.classList.add('hidden');
+                tocarSom('sucesso');
+            } else {
+                appBg.className = "bg-red-600 text-white h-screen flex flex-col justify-between transition-colors duration-100";
+                statusBox.className = "w-full max-w-md p-8 rounded-2xl bg-red-700 shadow-2xl border border-red-500 transition-all duration-100";
+                if (detalheExtra) {
+                    displayInfoExtra.textContent = detalheExtra;
+                    errorDetails.classList.remove('hidden');
+                } else {
+                    errorDetails.classList.add('hidden');
+                }
+                tocarSom('erro');
+            }
+
+            const tempoEspera = sucesso ? 400 : 600;
+
+            timeoutFeedback = setTimeout(() => {
+                appBg.className = "bg-slate-900 text-white h-screen flex flex-col justify-between transition-colors duration-100";
+                statusBox.className = "w-full max-w-md p-8 rounded-2xl bg-slate-800 shadow-2xl border border-slate-700 transition-all duration-100";
+                instructionTitle.textContent = "Aguardando Leitura...";
+                instructionSub.innerHTML = "Bipe a etiqueta <strong>NR</strong>";
+                displayNr.textContent = "-";
+                displayVolume.textContent = "-";
+                errorDetails.classList.add('hidden');
+                clienteInfo.classList.add('hidden');
+                matchInfo.classList.add('hidden');
+                etapa = 1;
+                nrAtual = '';
+                timeoutFeedback = null;
+                
+                inputField.focus();
+            }, tempoEspera);
+        }
+
+    </script>
+
+</body>
+</html>

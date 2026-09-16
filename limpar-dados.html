@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpar Dados - FreteOnX</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+        window.supabaseClient = createClient(
+            'https://fqrfknyludtvqaaajjoc.supabase.co',
+            'sb_publishable_fkC9WhreuFmhmbVRCw6Isw_rftuBACx'
+        );
+        window.dispatchEvent(new Event('supabase-ready'));
+    </script>
+</head>
+
+<body class="bg-slate-900 text-white min-h-screen p-6">
+
+    <div class="max-w-4xl mx-auto">
+
+        <!-- Cabeçalho -->
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-white">🗑️ Limpar Dados</h1>
+                <p class="text-slate-400 text-sm">Gerencie a exclusão de registros das tabelas do sistema</p>
+            </div>
+            <a href="admin-layout.html" class="text-amber-400 hover:text-amber-300 text-sm transition-colors">
+                ← Voltar ao Painel
+            </a>
+        </header>
+
+        <!-- Cards de Resumo -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-slate-400">📦 Conferencia</span>
+                    <span class="text-2xl font-bold text-emerald-400" id="total-conferencia">0</span>
+                </div>
+                <p class="text-xs text-slate-500">Registros na tabela principal</p>
+            </div>
+
+            <div class="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-slate-400">📋 Conferencia Log</span>
+                    <span class="text-2xl font-bold text-blue-400" id="total-log">0</span>
+                </div>
+                <p class="text-xs text-slate-500">Registros no histórico de conferências</p>
+            </div>
+        </section>
+
+        <!-- Área de Exclusão -->
+        <div class="bg-slate-800 rounded-xl p-6 border border-slate-700">
+
+            <h2 class="text-lg font-semibold text-white mb-4">🧹 Excluir Registros</h2>
+
+            <!-- Selecionar Tabela -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-slate-300 mb-1">Selecione a tabela:</label>
+                <div class="flex flex-wrap gap-4">
+                    <label class="flex items-center gap-2 text-sm text-slate-300">
+                        <input type="radio" name="tabela" value="conferencia" checked class="accent-amber-500">
+                        Conferencia
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-300">
+                        <input type="radio" name="tabela" value="conferencia_log" class="accent-amber-500">
+                        Conferencia Log
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-300">
+                        <input type="radio" name="tabela" value="ambas" class="accent-amber-500">
+                        Ambas
+                    </label>
+                </div>
+            </div>
+
+            <!-- Opções de exclusão -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Filtrar por período:</label>
+                    <select id="dias-filter" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-amber-500">
+                        <option value="0">Todos (sem filtro)</option>
+                        <option value="1">Último 1 dia</option>
+                        <option value="3">Últimos 3 dias</option>
+                        <option value="7" selected>Últimos 7 dias</option>
+                        <option value="15">Últimos 15 dias</option>
+                        <option value="30">Últimos 30 dias</option>
+                        <option value="60">Últimos 60 dias</option>
+                        <option value="90">Últimos 90 dias</option>
+                        <option value="180">Últimos 180 dias</option>
+                        <option value="365">Último 1 ano</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Conferente (apenas log):</label>
+                    <input type="text" id="conferente-filter" 
+                           class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500"
+                           placeholder="Deixe vazio para todos">
+                </div>
+            </div>
+
+            <!-- Informação sobre a data atual -->
+            <div class="mb-4 p-3 bg-slate-700/30 rounded-lg border border-slate-600">
+                <p class="text-xs text-slate-400">
+                    📅 <strong>Data atual (servidor):</strong> 
+                    <span class="text-slate-300" id="data-atual-info">carregando...</span>
+                </p>
+                <p class="text-xs text-slate-400 mt-1">
+                    🔍 <strong>Filtro ativo:</strong> 
+                    <span class="text-slate-300" id="filtro-info">carregando...</span>
+                </p>
+            </div>
+
+            <!-- Botões -->
+            <div class="flex flex-wrap gap-3 mt-4">
+                <button id="btn-contar" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    📊 Contar Registros
+                </button>
+                <button id="btn-excluir" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50">
+                    🗑️ Excluir Registros
+                </button>
+                <button id="btn-excluir-tudo" class="bg-red-900 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50">
+                    ⚠️ Excluir TUDO
+                </button>
+            </div>
+
+            <!-- Status -->
+            <div id="status-area" class="mt-4 p-3 rounded-lg hidden"></div>
+
+            <!-- Registros encontrados -->
+            <div id="registros-encontrados" class="mt-4 hidden">
+                <h3 class="text-sm font-semibold text-slate-300 mb-2">📋 Registros encontrados:</h3>
+                <div id="lista-registros" class="max-h-60 overflow-y-auto space-y-1 text-xs"></div>
+            </div>
+
+        </div>
+
+        <!-- Aviso -->
+        <div class="mt-6 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
+            <p class="text-sm text-red-300">
+                ⚠️ <strong>Atenção:</strong> A exclusão de dados é permanente e não pode ser desfeita.
+                Recomendamos fazer um backup antes de prosseguir.
+            </p>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================================
+        // VERIFICA ACESSO ADMIN
+        // ==========================================================
+
+        function verificarAdmin() {
+            const usuarioSalvo = localStorage.getItem('usuario_logado');
+            if (!usuarioSalvo) {
+                window.location.href = 'index.html';
+                return null;
+            }
+            try {
+                const dados = JSON.parse(usuarioSalvo);
+                if (!dados.usuario || dados.role !== 'admin') {
+                    window.location.href = 'conferencia.html';
+                    return null;
+                }
+                return dados;
+            } catch (e) {
+                window.location.href = 'index.html';
+                return null;
+            }
+        }
+        const usuario = verificarAdmin();
+
+
+        // ==========================================================
+        // FUNÇÃO PARA OBTER O TENANT DO USUÁRIO LOGADO
+        // ==========================================================
+
+        function getTenantId() {
+            try {
+                const usuarioSalvo = localStorage.getItem('usuario_logado');
+                if (!usuarioSalvo) return null;
+                const dados = JSON.parse(usuarioSalvo);
+                return dados.tenant_id || null;
+            } catch (e) {
+                console.error('❌ Erro ao obter tenant:', e);
+                return null;
+            }
+        }
+
+
+        // ==========================================================
+        // VARIÁVEIS
+        // ==========================================================
+
+        let supabaseClient = null;
+        let contagem = { conferencia: 0, log: 0 };
+
+
+        // ==========================================================
+        // INICIALIZAÇÃO
+        // ==========================================================
+
+        window.addEventListener('supabase-ready', () => {
+            supabaseClient = window.supabaseClient;
+            carregarContagens();
+            atualizarInfoData();
+        });
+
+        setTimeout(() => {
+            if (!supabaseClient && window.supabaseClient) {
+                supabaseClient = window.supabaseClient;
+                carregarContagens();
+                atualizarInfoData();
+            }
+        }, 2000);
+
+
+        // ==========================================================
+        // ATUALIZAR INFORMAÇÃO DE DATA
+        // ==========================================================
+
+        function atualizarInfoData() {
+            const hoje = new Date();
+            document.getElementById('data-atual-info').textContent = hoje.toLocaleString('pt-BR');
+            
+            const dias = parseInt(document.getElementById('dias-filter').value);
+            if (dias > 0) {
+                const dataLimite = new Date();
+                dataLimite.setDate(dataLimite.getDate() - dias);
+                document.getElementById('filtro-info').textContent = `Registros dos últimos ${dias} dias (a partir de ${dataLimite.toLocaleDateString('pt-BR')})`;
+            } else {
+                document.getElementById('filtro-info').textContent = 'Todos os registros (sem filtro)';
+            }
+        }
+
+        // Atualiza a info quando mudar o filtro
+        document.getElementById('dias-filter').addEventListener('change', atualizarInfoData);
+
+
+        // ==========================================================
+        // FUNÇÕES
+        // ==========================================================
+
+        async function carregarContagens() {
+            if (!supabaseClient) return;
+
+            try {
+                const tenantId = getTenantId();
+                
+                let queryConf = supabaseClient.from('conferencia').select('*', { count: 'exact', head: true });
+                let queryLog = supabaseClient.from('conferencia_log').select('*', { count: 'exact', head: true });
+
+                if (tenantId) {
+                    queryConf = queryConf.eq('tenant_id', tenantId);
+                    queryLog = queryLog.eq('tenant_id', tenantId);
+                }
+
+                const [conf, log] = await Promise.all([queryConf, queryLog]);
+
+                contagem.conferencia = conf.count || 0;
+                contagem.log = log.count || 0;
+
+                document.getElementById('total-conferencia').textContent = contagem.conferencia;
+                document.getElementById('total-log').textContent = contagem.log;
+            } catch (err) {
+                console.error('❌ Erro ao carregar contagens:', err);
+            }
+        }
+
+        function getTabelas() {
+            const selected = document.querySelector('input[name="tabela"]:checked');
+            if (!selected) return ['conferencia'];
+            
+            const value = selected.value;
+            if (value === 'ambas') return ['conferencia', 'conferencia_log'];
+            return [value];
+        }
+
+        function getFiltros() {
+            const dias = parseInt(document.getElementById('dias-filter').value);
+            const conferente = document.getElementById('conferente-filter').value.trim();
+            return { dias, conferente };
+        }
+
+        function buildQuery(tabela, filtros) {
+            const tenantId = getTenantId();
+            let query = supabaseClient.from(tabela).select('*', { count: 'exact' });
+            
+            if (tenantId) {
+                query = query.eq('tenant_id', tenantId);
+            }
+
+            if (filtros.dias > 0) {
+                const dataLimite = new Date();
+                dataLimite.setDate(dataLimite.getDate() - filtros.dias);
+                query = query.gte('created_at', dataLimite.toISOString());
+            }
+
+            if (filtros.conferente && tabela === 'conferencia_log') {
+                query = query.eq('conferente', filtros.conferente);
+            }
+
+            query = query.limit(1000);
+            return query;
+        }
+
+        function buildDeleteQuery(tabela, filtros) {
+            const tenantId = getTenantId();
+            let query = supabaseClient.from(tabela).delete();
+            
+            if (tenantId) {
+                query = query.eq('tenant_id', tenantId);
+            }
+
+            if (filtros.dias > 0) {
+                const dataLimite = new Date();
+                dataLimite.setDate(dataLimite.getDate() - filtros.dias);
+                query = query.gte('created_at', dataLimite.toISOString());
+            } else {
+                query = query.neq('id', 0);
+            }
+
+            if (filtros.conferente && tabela === 'conferencia_log') {
+                query = query.eq('conferente', filtros.conferente);
+            }
+
+            return query;
+        }
+
+        async function contarRegistros() {
+            const tabelas = getTabelas();
+            const filtros = getFiltros();
+            const status = document.getElementById('status-area');
+            const lista = document.getElementById('lista-registros');
+            const container = document.getElementById('registros-encontrados');
+
+            status.className = 'mt-4 p-3 rounded-lg text-sm';
+            status.textContent = '⏳ Contando registros...';
+            status.classList.remove('hidden', 'text-green-400', 'text-red-400', 'text-slate-300');
+            status.classList.add('text-slate-300');
+
+            try {
+                let total = 0;
+                let resultados = [];
+
+                for (const tabela of tabelas) {
+                    const query = buildQuery(tabela, filtros);
+                    const { data, count, error } = await query;
+
+                    if (error) throw error;
+
+                    resultados.push({ tabela, count: count || 0, data: data || [] });
+                    total += count || 0;
+                }
+
+                let html = '';
+                if (total === 0) {
+                    html = `<div class="text-center text-slate-400 py-4">📭 Nenhum registro encontrado com os filtros selecionados.</div>`;
+                    
+                    if (filtros.dias > 0) {
+                        const dataLimite = new Date();
+                        dataLimite.setDate(dataLimite.getDate() - filtros.dias);
+                        html += `<div class="text-center text-xs text-slate-500 mt-2">Data limite (início): ${dataLimite.toLocaleString('pt-BR')}</div>`;
+                        html += `<div class="text-center text-xs text-slate-500">Data atual: ${new Date().toLocaleString('pt-BR')}</div>`;
+                    }
+                } else {
+                    resultados.forEach(r => {
+                        html += `<div class="flex justify-between items-center bg-slate-700/30 px-3 py-1.5 rounded">
+                                    <span class="font-medium">${r.tabela}</span>
+                                    <span class="text-amber-400 font-bold">${r.count} registros</span>
+                                </div>`;
+                        
+                        if (r.data.length > 0) {
+                            const primeiros = r.data.slice(0, 5);
+                            primeiros.forEach(item => {
+                                const data = item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-';
+                                html += `<div class="flex justify-between items-center bg-slate-800/30 px-3 py-1 rounded text-xs text-slate-400 ml-4">
+                                            <span>NR: ${item.nr || 'N/A'}</span>
+                                            <span>Conferente: ${item.conferente || '-'}</span>
+                                            <span>${data}</span>
+                                        </div>`;
+                            });
+                            if (r.data.length > 5) {
+                                html += `<div class="text-xs text-slate-500 ml-4">... e mais ${r.data.length - 5} registros</div>`;
+                            }
+                        }
+                    });
+                }
+
+                lista.innerHTML = html;
+                container.classList.remove('hidden');
+
+                if (total === 0) {
+                    status.textContent = '✅ Nenhum registro encontrado com os filtros selecionados. Tente ajustar os filtros.';
+                    status.className = 'mt-4 p-3 rounded-lg text-sm text-green-400 bg-green-900/20 border border-green-500/30';
+                } else {
+                    status.textContent = `📊 Encontrados ${total} registros para exclusão.`;
+                    status.className = 'mt-4 p-3 rounded-lg text-sm text-amber-400 bg-amber-900/20 border border-amber-500/30';
+                }
+
+            } catch (err) {
+                console.error('❌ Erro ao contar:', err);
+                status.textContent = `❌ Erro ao contar registros: ${err.message}`;
+                status.className = 'mt-4 p-3 rounded-lg text-sm text-red-400 bg-red-900/20 border border-red-500/30';
+            }
+        }
+
+        async function excluirRegistros() {
+            const tabelas = getTabelas();
+            const filtros = getFiltros();
+            const status = document.getElementById('status-area');
+
+            if (!confirm('⚠️ Tem certeza que deseja excluir os registros selecionados?\n\nEsta ação é PERMANENTE e não pode ser desfeita!')) {
+                return;
+            }
+            if (!confirm('🔄 ÚLTIMA CHANCE! Deseja realmente prosseguir com a exclusão?')) {
+                return;
+            }
+
+            status.className = 'mt-4 p-3 rounded-lg text-sm';
+            status.textContent = '⏳ Excluindo registros...';
+            status.classList.remove('hidden', 'text-green-400', 'text-red-400', 'text-slate-300');
+            status.classList.add('text-slate-300');
+
+            try {
+                let totalExcluidos = 0;
+
+                for (const tabela of tabelas) {
+                    const query = buildDeleteQuery(tabela, filtros);
+                    const { data, error } = await query;
+
+                    if (error) throw error;
+                    totalExcluidos += data?.length || 0;
+                }
+
+                status.textContent = `✅ Exclusão concluída! ${totalExcluidos} registros removidos.`;
+                status.className = 'mt-4 p-3 rounded-lg text-sm text-green-400 bg-green-900/20 border border-green-500/30';
+
+                await carregarContagens();
+                await contarRegistros();
+
+            } catch (err) {
+                console.error('❌ Erro ao excluir:', err);
+                status.textContent = `❌ Erro ao excluir registros: ${err.message}`;
+                status.className = 'mt-4 p-3 rounded-lg text-sm text-red-400 bg-red-900/20 border border-red-500/30';
+            }
+        }
+
+        async function excluirTudo() {
+            if (!confirm('⚠️⚠️ ATENÇÃO EXTREMA! ⚠️⚠️\n\nVocê está prestes a excluir TODOS os registros das tabelas selecionadas.\n\nEsta ação é PERMANENTE e IRREVERSÍVEL!\n\nDigite "EXCLUIR TUDO" para confirmar.')) {
+                return;
+            }
+
+            const confirmacao = prompt('Digite "EXCLUIR TUDO" para confirmar:');
+            if (confirmacao !== 'EXCLUIR TUDO') {
+                alert('❌ Confirmação incorreta. Operação cancelada.');
+                return;
+            }
+
+            const tabelas = getTabelas();
+            const status = document.getElementById('status-area');
+
+            status.className = 'mt-4 p-3 rounded-lg text-sm';
+            status.textContent = '⏳ Excluindo TODOS os registros...';
+            status.classList.remove('hidden', 'text-green-400', 'text-red-400', 'text-slate-300');
+            status.classList.add('text-slate-300');
+
+            try {
+                let totalExcluidos = 0;
+
+                for (const tabela of tabelas) {
+                    const { data, error } = await supabaseClient
+                        .from(tabela)
+                        .delete()
+                        .neq('id', 0);
+
+                    if (error) throw error;
+                    totalExcluidos += data?.length || 0;
+                }
+
+                status.textContent = `✅ Exclusão concluída! ${totalExcluidos} registros removidos.`;
+                status.className = 'mt-4 p-3 rounded-lg text-sm text-green-400 bg-green-900/20 border border-green-500/30';
+
+                await carregarContagens();
+                await contarRegistros();
+
+            } catch (err) {
+                console.error('❌ Erro ao excluir tudo:', err);
+                status.textContent = `❌ Erro ao excluir: ${err.message}`;
+                status.className = 'mt-4 p-3 rounded-lg text-sm text-red-400 bg-red-900/20 border border-red-500/30';
+            }
+        }
+
+
+        // ==========================================================
+        // EVENTOS
+        // ==========================================================
+
+        document.getElementById('btn-contar').addEventListener('click', contarRegistros);
+        document.getElementById('btn-excluir').addEventListener('click', excluirRegistros);
+        document.getElementById('btn-excluir-tudo').addEventListener('click', excluirTudo);
+
+        setTimeout(carregarContagens, 1000);
+
+        console.log('🗑️ Painel de limpeza de dados iniciado');
+        console.log('🔒 Filtro por tenant ativo');
+    </script>
+
+</body>
+</html>
