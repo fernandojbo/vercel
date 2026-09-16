@@ -1,27 +1,18 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "redirects": [
+  "rewrites": [
     {
       "source": "/",
-      "destination": "/2bip_apresentacao.html",
-      "permanent": false
+      "destination": "/2bip_apresentacao.html"
     },
     {
       "source": "/sistema",
-      "destination": "/sistema/index.html",
-      "permanent": false
+      "destination": "/sistema/index.html"
     },
     {
-      "source": "/apresentacao",
-      "destination": "/2bip_apresentacao.html",
-      "permanent": false
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/sistema/:path*",
-      "destination": "/sistema/:path*"
+      "source": "/sistema/",
+      "destination": "/sistema/index.html"
     }
   ]
 }
