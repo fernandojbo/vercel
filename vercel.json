@@ -1,18 +1,9 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "rewrites": [
-    {
-      "source": "/",
-      "destination": "/2bip_apresentacao.html"
-    },
-    {
-      "source": "/sistema",
-      "destination": "/sistema/index.html"
-    },
-    {
-      "source": "/sistema/",
-      "destination": "/sistema/index.html"
-    }
+  "routes": [
+    { "src": "/sistema/(.*)", "dest": "/sistema/$1" },
+    { "src": "/sistema", "dest": "/sistema/index.html" },
+    { "src": "/(.*)", "dest": "/2bip_apresentacao.html" }
   ]
 }
