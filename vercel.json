@@ -3,6 +3,11 @@
   "trailingSlash": false,
   "redirects": [
     {
+      "source": "/",
+      "destination": "/2bip_apresentacao.html",
+      "permanent": false
+    },
+    {
       "source": "/sistema",
       "destination": "/sistema/index.html",
       "permanent": false
